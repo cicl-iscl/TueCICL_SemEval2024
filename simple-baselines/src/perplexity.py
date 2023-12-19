@@ -20,51 +20,82 @@ def get_data(train_path, test_path, random_seed):
 
     return train_df, test_df
 
-def encode(string):
-    ids = []
-    spl = string.split()
-    for i, tok in enumerate(spl):
-        if i == 1022:
-            break
-        encoded = tokenizer.encode(tok)
-        ids.extend(encoded)
-    ids = [tokenizer.bos_token_id] + ids + [tokenizer.eos_token_id]
-    return ids
 
+class TaskADataset(torch.utils.data.Dataset):
+    """
+    Wrapper for the IMDB dataset which returns the tokenized text
+    and truncates / pads to a maximum length of 64 tokens.
+    This is done following the paper referenced above where the input review
+    snippets were maximally 64 tokens and then the review had to be completed
+    with a positive sentiment.
+    """
 
-def perplexity(logits, l, input_ids):
-    logprobs = log_softmax(logits, dim=1)
+    def __init__(self, dataset, tokenizer):
+        self.dataset = dataset
+        self.tokenizer = tokenizer
+        # following the paper referenced above, input texts are <= 64 tokens
+        self.max_len = 1022
+        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+    def __getitem__(self, idx):
+        # get the text from the dataset
+        text = self.dataset.iloc[idx]['text']
+        # tokenize the text
+        # and manually prepend BOS token (GPT-2 tokenizer doesn't do it somehow)
+        tokens = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=self.max_len,
+            padding='max_length',
+            return_tensors='pt'
+        )
+        # return the tokens and the attention mask
+        return {
+            'input_ids': tokens.input_ids.squeeze().to(self.device),
+            'attention_mask': tokens.attention_mask.squeeze().to(self.device)
+        }
+
+    def __len__(self):
+        return len(self.dataset)
+
+def perplexity(logits, batch):
+    logprobs = log_softmax(logits, dim=-1)
     logprobs = np.array(logprobs)
-    total_prob = 0
-    for i in range(len(input_ids)):
-        curr_prob = logprobs[i, input_ids[i]]
-        total_prob += curr_prob
-    ppl = - (1 / l) * total_prob
-    return np.exp(ppl)
+    ppl_lst = []
+    for i in range(len(logprobs)):
+        input_ids = batch["input_ids"][i].cpu()
+        attention_mask = batch["attention_mask"][i].cpu()
+        attention_mask = np.array(attention_mask)
+        l = len(attention_mask[attention_mask == 1])
+        total_prob = 0
+        for j in range(l -1):
+            curr_prob = logprobs[i, j, input_ids[j+1]]
+            total_prob += curr_prob
+        ppl_lst.append(np.exp( - (1 / l) * total_prob))
+    return ppl_lst
 
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 print(device)
 train_df, test_df = get_data("../../data/subtaskA_train_monolingual.jsonl", "../../data/subtaskA_dev_monolingual.jsonl", 0)
-
 red_df = pd.concat([train_df.iloc[:100,:], train_df.iloc[-100:,:]])
+
 model = AutoModelForCausalLM.from_pretrained('gpt2')
 tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+tokenizer.pad_token = tokenizer.eos_token
+
 model.to(device)
 human_ppl_list = []
 machine_ppl_list = []
 ppl_list = []
-for i in range(len(red_df)):
-    input_ids = encode(train_df.text.iloc[i])
-    if len(input_ids) > 1024:
-        input_ids = input_ids[:1022] + [tokenizer.eos_token_id]
-    input_text = torch.tensor(input_ids).to(device)
-    out = model(torch.tensor(input_text).unsqueeze(0))
+dataset = TaskADataset(red_df, tokenizer)
+dataloader = torch.utils.data.DataLoader(dataset, batch_size=2)
+for batch in tqdm(dataloader):
+    out = model(**batch)
     logits = out.logits.detach().cpu()
     logits = logits.squeeze()
-    l = len(input_ids)
-    ppl = perplexity(logits, l, input_ids)
-    ppl_list.append(ppl)
+    ppl = perplexity(logits, batch)
+    ppl_list += ppl
     # if train_df.iloc[i]["label"] == 1:
     #     machine_ppl_list.append(ppl)
     # else:
