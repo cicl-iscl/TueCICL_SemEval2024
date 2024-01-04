@@ -1,6 +1,12 @@
 from argparse import ArgumentParser
+import numpy as np
+
+import torch
 from src.trainers.word2vec_labeller import entry as train_word2vec_labeller
 from src.trainers.char_labeller import entry as train_char_labeller
+
+torch.manual_seed(42)
+np.random.seed(42)
 
 
 if __name__ == "__main__":
