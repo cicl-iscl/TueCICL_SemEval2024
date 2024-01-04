@@ -95,7 +95,7 @@ for batch in tqdm(dataloader):
     logits = out.logits.detach().cpu()
     logits = logits.squeeze()
     ppl = perplexity(logits, batch)
-    ppl_list += ppl
+    ppl_list += [[p] for p in ppl]
     # if train_df.iloc[i]["label"] == 1:
     #     machine_ppl_list.append(ppl)
     # else:

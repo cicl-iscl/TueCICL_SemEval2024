@@ -16,18 +16,25 @@ def get_data(train_path, test_path, random_seed):
 
     return train_df, test_df
 
+
+def preprocess(df):
+    df.text.str.replace('\n+', '', regex=True)
+    return df
+
 # some test sentences
 # X = ['This is the first document.', 'This document is the second document.','And this is the third one.','Is this the first document?']
 
 # load data
 train_df, test_df = get_data("../../data/subtaskA_train_monolingual.jsonl", "../../data/subtaskA_dev_monolingual.jsonl", 0)
+train_df = preprocess(train_df)
+test_df = preprocess(test_df)
 
 # shuffle data because it's sorted
 train_df = train_df.sample(frac=1).reset_index(drop=True)
 test_df = test_df.sample(frac=1).reset_index(drop=True)
 
 # create vectorizer to transform documents in sparse tf-idf vector representations
-vectorizer = TfidfVectorizer(analyzer="char", ngram_range=(4, 4), sublinear_tf=True, max_df=0.5, min_df=5)
+vectorizer = TfidfVectorizer(analyzer="char", ngram_range=(4, 6), sublinear_tf=True, max_df=0.7, min_df=50, use_idf=True)
 X_train = vectorizer.fit_transform(train_df.text)
 X_test = vectorizer.transform(test_df.text)
 features = vectorizer.get_feature_names_out()
