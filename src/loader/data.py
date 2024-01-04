@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import Dataset
 
 from ..util.device import get_device
+import pandas as pd
 
 
 class TaskC_Data(Dataset):
@@ -22,6 +23,19 @@ class TaskC_Data(Dataset):
 
         return data
 
+    def import_task_A(self):
+        path = "data/subtaskA_train_monolingual.jsonl"
+        with open(path, "r") as f:
+            for line in f:
+                if not line: continue   
+                parsed = json.loads(line)
+                obj = {
+                    "text": parsed["text"],
+                    "label": 0 if parsed["label"] == 1 else -1,
+                    "id": parsed["id"]
+                }
+                self.data.append(obj)
+
     def __len__(self):
         return len(self.data)
 
@@ -38,6 +52,9 @@ def collate_fn_wordlevel(tokenizer):
         labels_tensor = torch.zeros(
             (len(batch), input_ids.shape[1]), dtype=torch.long, device=get_device())
         for i, label in enumerate(labels):
+            if label == -1:
+                # text is fully human
+                continue
             for j in range(label, input_ids.shape[1]):
                 labels_tensor[i, j] = 1
         return input_ids, labels_tensor
@@ -57,6 +74,9 @@ def collate_fn_charlevel(tokenizer, max_len=20_000):
             (len(batch)), dtype=torch.long, device=get_device())
         for i, label in enumerate(labels):
             true_labels[i] = label
+            if label == -1:
+                # fully human text
+                continue
             label_start = words[i].tolist().index(label)
             for j in range(label_start, input_ids.shape[1]):
                 labels_tensor[i, j] = 1

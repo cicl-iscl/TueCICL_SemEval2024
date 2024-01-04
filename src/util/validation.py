@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import torch
 
@@ -12,6 +13,15 @@ def get_start_position(pred: torch.Tensor) -> int:
             result.append(0)
     return result
 
+def _get_distance(pred: int, gold:int) -> float:
+    if gold == -1 and pred != gold:
+        # return at least distance 100
+        return max(100, abs(pred - gold))
+    return abs(pred - gold)
+
+def MAS(pred: List[int], gold: List[int]):
+    d = [_get_distance(a, b) for a, b in zip(pred, gold)]
+    return sum(d) / len(d)
 
 def evaluate(model, dev_dataloader):
     pred = []
@@ -30,7 +40,5 @@ def evaluate(model, dev_dataloader):
                 predicted = model.predict(input_ids, words)
                 pred.extend(predicted)
                 gold.extend(true_labels)
-
-    distances = [abs(pred[i] - gold[i]) for i in range(len(pred))]
-    mean = sum(distances) / len(distances)
+    mean = MAS(pred, gold)
     return mean

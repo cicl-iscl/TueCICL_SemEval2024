@@ -24,8 +24,9 @@ class CharLevelLabeller(nn.Module):
             input_size=embedding_size,
             num_layers=num_layers,
             batch_first=True,
+            bidirectional=True
         )
-        self.lstm2pred = nn.Linear(hidden_size, output_size)
+        self.lstm2pred = nn.Linear(hidden_size*2, output_size)
 
     def forward(self, input_ids):
         embedded = self.emb(input_ids)
@@ -40,10 +41,11 @@ class CharLevelLabeller(nn.Module):
         result = []
         for i in range(pred.shape[0]):
             l = pred[i].cpu().tolist()
-            char = l.index(1) if 1 in l else len(l) // 2
+            # -1 = fully human text
+            char = l.index(1) if 1 in l else -1
             # predicted word is the word where the char is located
             # 'words' tracks the word index of each char
-            word = words[i].tolist()[char]
+            word = words[i].tolist()[char] if char != -1 else -1
             result.append(word)
         return result
 
@@ -90,7 +92,8 @@ class CharTokenizer:
                 [self.word2idx[self.PAD]] * (longest - len(input_ids[i]))
             attentions.append(
                 [1 if _id != self.word2idx[self.PAD] else 0 for _id in input_ids[i]])
-            words[i] = words[i] + [-1] * (longest - len(words[i]))
+            pad_word = max(words[i]) + 1
+            words[i] = words[i] + [pad_word] * (longest - len(words[i]))
         input_ids = torch.tensor(
             input_ids, dtype=torch.long, device=get_device())
         attentions = torch.tensor(
@@ -109,6 +112,9 @@ class CharTokenizer:
         self.word2idx = word2idx
         self.idx2word = idx2word
         self.vocab = vocab
+
+    def __str__(self) -> str:
+        return f"CharTokenizer[ size={len(self.vocab)} ]"
 
     @classmethod
     def from_pretrained(cls, path: str, texts: List[str] = None):

@@ -29,10 +29,11 @@ class CharLevelLabellerArgs:
 
 def train_char_level_labeller(args: CharLevelLabellerArgs):
     tracker = ProgressTracker(args.checkpoint_prefix)
+    i = 0
     for epoch in range(1, args.n_epochs+1):
         with tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
-            for i, batch in enumerate(args.train_loader):
+            for batch in args.train_loader:
                 args.optimizer.zero_grad()
                 input_ids, _, _, labels, _ = batch
                 out = args.model(input_ids)
@@ -40,11 +41,13 @@ def train_char_level_labeller(args: CharLevelLabellerArgs):
                 labels = labels.reshape(-1)
                 loss = args.criterion(out, labels)
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    args.model.parameters(), args.clip)
+                if args.clip is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        args.model.parameters(), args.clip)
                 args.optimizer.step()
 
                 pbar.update(1)
+                i += 1
 
                 if i % args.save_every == 0 and i != 0:
                     best, latest = tracker.for_steps(
@@ -56,7 +59,8 @@ def train_char_level_labeller(args: CharLevelLabellerArgs):
 
 
 def entry():
-    tokenizer = CharTokenizer.from_pretrained("data/charlm_vocab.pkl")
+    tokenizer = CharTokenizer.from_pretrained("data/charlm_vocab_uncondensed.pkl")
+    print(tokenizer)
     model = CharLevelLabeller(
         embedding_size=8,
         hidden_size=256,
@@ -65,12 +69,15 @@ def entry():
         vocab_size=len(tokenizer.idx2word),
     )
     model.to(get_device())
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
     criterion = torch.nn.NLLLoss()
-    train_loader = DataLoader(TaskC_Data(
-        split="train"), batch_size=2, collate_fn=collate_fn_charlevel(tokenizer))
+    batch_size = 8
+    ds = TaskC_Data(split="train")
+    # enrich training data
+    ds.import_task_A()
+    train_loader = DataLoader(ds, shuffle=True, batch_size=batch_size, collate_fn=collate_fn_charlevel(tokenizer))
     dev_loader = DataLoader(TaskC_Data(
-        split="dev"), batch_size=2, collate_fn=collate_fn_charlevel(tokenizer))
+        split="dev"), batch_size=batch_size, collate_fn=collate_fn_charlevel(tokenizer))
 
     args = CharLevelLabellerArgs(
         model=model,
@@ -78,10 +85,10 @@ def entry():
         criterion=criterion,
         train_loader=train_loader,
         dev_loader=dev_loader,
-        clip=5.0,
+        clip=None,
         device=get_device(),
-        n_epochs=5,
-        save_every=300,
+        n_epochs=10,
+        save_every=2000,
         checkpoint_prefix="charlabeller"
     )
 
