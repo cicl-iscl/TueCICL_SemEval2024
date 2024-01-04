@@ -7,3 +7,4 @@ keys
 data
 .ipynb_checkpoints
 checkpoints
+.vscode
