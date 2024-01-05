@@ -5,6 +5,8 @@ from torch.utils.data.dataloader import DataLoader
 import torch
 from tqdm import tqdm
 
+from ..util.validation import evaluate
+
 from ..util.checkpoints import ProgressTracker
 
 from ..loader.data import TaskC_Data, collate_fn_charlevel, collate_fn_wordlevel
@@ -25,12 +27,13 @@ class CharLevelLabellerArgs:
     device: str = get_device()
     clip: float = 1.0
     checkpoint_prefix: str = "charlabeller"
+    start_epoch: int = 1
 
 
 def train_char_level_labeller(args: CharLevelLabellerArgs):
     tracker = ProgressTracker(args.checkpoint_prefix)
     i = 0
-    for epoch in range(1, args.n_epochs+1):
+    for epoch in range(args.start_epoch, args.n_epochs+1):
         with tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
             for batch in args.train_loader:
@@ -60,7 +63,7 @@ def train_char_level_labeller(args: CharLevelLabellerArgs):
 
 def entry():
     tokenizer = CharTokenizer.from_pretrained("data/charlm_vocab_uncondensed.pkl")
-    print(tokenizer)
+    cp = torch.load("checkpoints/charlabeller/epoch_1.pt")
     model = CharLevelLabeller(
         embedding_size=8,
         hidden_size=256,
@@ -68,8 +71,10 @@ def entry():
         output_size=2,
         vocab_size=len(tokenizer.idx2word),
     )
+    model.load_state_dict(cp["model"])
     model.to(get_device())
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
+    optimizer.load_state_dict(cp["optimizer"])
     criterion = torch.nn.NLLLoss()
     batch_size = 8
     ds = TaskC_Data(split="train")
@@ -89,7 +94,8 @@ def entry():
         device=get_device(),
         n_epochs=10,
         save_every=2000,
-        checkpoint_prefix="charlabeller"
+        checkpoint_prefix="charlabeller",
+        start_epoch=cp["epoch"] + 1
     )
 
     train_char_level_labeller(args)

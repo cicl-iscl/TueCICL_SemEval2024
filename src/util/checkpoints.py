@@ -15,8 +15,14 @@ class ProgressTracker:
             pass
 
     def for_steps(self, model, dev_loader):
+        best_path = f"checkpoints/{self.prefix}/best.pt"
         if "best" not in self.progress:
-            self.progress["best"] = 9999
+            try:
+                last_best = torch.load(best_path)
+                self.progress["best"] = last_best["metric"]
+            except:
+                print("No previous best found")
+                self.progress["best"] = 9999
         metric = evaluate(model, dev_loader)
         is_best = metric < self.progress["best"]
         cp = {
@@ -25,7 +31,7 @@ class ProgressTracker:
         }
         if is_best:
             self.progress["best"] = metric
-            torch.save(cp, f"checkpoints/{self.prefix}/best.pt")
+            torch.save(cp, best_path)
         torch.save(cp, f"checkpoints/{self.prefix}/latest.pt")
         return self.progress["best"], metric
 
