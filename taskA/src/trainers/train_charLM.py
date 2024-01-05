@@ -109,13 +109,13 @@ def train_charlm(args: CharLMTrainingArguments):
 
 def entry(args):
     tokenizer = CharLMTokenizer.from_pretrained(
-        abspath(__file__, "../../data/charlm_vocab.pkl"))
+        abspath(__file__, "../../data/charlm_vocab_uncondensed.pkl"))
     model = CharLM(
         vocab_size=len(tokenizer.vocab),
         aggregate_fn="mean",
         emb_size=8,
         hidden_size=256,
-        num_layers=2
+        num_layers=3
     )
     model.to(get_device())
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
@@ -135,7 +135,7 @@ def entry(args):
     )
 
     training_args = CharLMTrainingArguments(
-        checkpoint_prefix="charLM_256_2",
+        checkpoint_prefix="charLM_256_3_full",
         train_loader=train_dataloader,
         dev_loader=dev_dataloader,
         model=model,
@@ -143,7 +143,7 @@ def entry(args):
         device=get_device(),
         n_epochs=5,
         start_epoch=1,
-        save_every=100
+        save_every=1000
     )
 
     train_charlm(training_args)

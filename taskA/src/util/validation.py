@@ -7,7 +7,7 @@ def evaluate(model, dev_dataloader, f1_only=True):
     y_gold = []
     with torch.no_grad():
         for input_ids, attentions, labels in dev_dataloader:
-            _, out = model(input_ids, attentions)
+            _, out, _ = model(input_ids, attentions)
             for i in range(out.shape[0]):
                 pred = torch.argmax(out[i]).item()
                 y_pred.append(pred)
