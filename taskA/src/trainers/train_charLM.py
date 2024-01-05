@@ -143,7 +143,7 @@ def entry(args):
         device=get_device(),
         n_epochs=5,
         start_epoch=1,
-        save_every=1000
+        save_every=2000
     )
 
     train_charlm(training_args)
