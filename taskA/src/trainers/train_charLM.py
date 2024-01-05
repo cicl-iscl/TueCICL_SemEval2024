@@ -122,14 +122,14 @@ def entry(args):
 
     train_dataloader = DataLoader(
         TaskA_Dataset(split="train"),
-        batch_size=16,
+        batch_size=8,
         shuffle=True,
         collate_fn=collate_fn(tokenizer)
     )
 
     dev_dataloader = DataLoader(
         TaskA_Dataset(split="dev"),
-        batch_size=16,
+        batch_size=8,
         shuffle=True,
         collate_fn=collate_fn(tokenizer)
     )
