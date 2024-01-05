@@ -16,17 +16,28 @@ class CharLevelLabeller(nn.Module):
         hidden_size: int,
         output_size: int,
         num_layers: int = 1,
+        bidirectional: bool = True
     ) -> None:
         super().__init__()
-        self.emb = nn.Embedding(vocab_size, embedding_size)
+
+        self.vocab_size = vocab_size
+        self.embedding_size = embedding_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.num_layers = num_layers
+        self.bidirectional = bidirectional
+
+        self.emb = nn.Embedding(self.vocab_size, self.embedding_size)
         self.lstm = nn.LSTM(
-            hidden_size=hidden_size,
-            input_size=embedding_size,
-            num_layers=num_layers,
+            hidden_size=self.hidden_size,
+            input_size=self.embedding_size,
+            num_layers=self.num_layers,
+            bidirectional=self.bidirectional,
             batch_first=True,
-            bidirectional=True
         )
-        self.lstm2pred = nn.Linear(hidden_size*2, output_size)
+
+        h = self.hidden_size * 2 if self.bidirectional else self.hidden_size
+        self.lstm2pred = nn.Linear(h, self.output_size)
 
     def forward(self, input_ids):
         embedded = self.emb(input_ids)
@@ -48,6 +59,34 @@ class CharLevelLabeller(nn.Module):
             word = words[i].tolist()[char] if char != -1 else -1
             result.append(word)
         return result
+
+    def save(self, path, extra={}):
+        save_data = {
+            "state_dict": self.state_dict(),
+            "vocab_size": self.vocab_size,
+            "embedding_size": self.embedding_size,
+            "hidden_size": self.hidden_size,
+            "output_size": self.output_size,
+            "num_layers": self.num_layers,
+            "bidirectional": self.bidirectional,
+            **extra
+        }
+        torch.save(save_data, path)
+
+    @classmethod
+    def from_pretrained(cls, path):
+        save_data = torch.load(path)
+        model = cls(
+            vocab_size=save_data["vocab_size"],
+            embedding_size=save_data["embedding_size"],
+            vocab_size=save_data["vocab_size"],
+            hidden_size=save_data["hidden_size"],
+            output_size=save_data["output_size"],
+            num_layers=save_data["num_layers"],
+            bidirectional=save_data["bidirectional"],
+        )
+        model.load_state_dict(save_data["state_dict"])
+        return model
 
 
 class CharTokenizer:
@@ -116,17 +155,12 @@ class CharTokenizer:
     def __str__(self) -> str:
         return f"CharTokenizer[ size={len(self.vocab)} ]"
 
+    def save(self, path):
+        with open(path, "wb") as f:
+            pickle.dump((self.word2idx, self.idx2word, self.vocab), f)
+
     @classmethod
-    def from_pretrained(cls, path: str, texts: List[str] = None):
-        try:
-            with open(path, "rb") as f:
-                word2idx, idx2word, vocab = pickle.load(f)
-                return cls(word2idx, idx2word, vocab)
-        except:
-            obj = cls()
-            cls.build(texts=texts)
-
-            with open(path, "wb") as f:
-                pickle.dump((obj.word2idx, obj.idx2word, obj.vocab), f)
-
-            return obj
+    def from_pretrained(cls, path: str):
+        with open(path, "rb") as f:
+            word2idx, idx2word, vocab = pickle.load(f)
+            return cls(word2idx, idx2word, vocab)

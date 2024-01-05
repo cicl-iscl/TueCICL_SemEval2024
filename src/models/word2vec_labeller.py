@@ -20,6 +20,7 @@ class Word2Vec_Labeller(nn.Module):
         super().__init__()
 
         self.hidden_size = hidden_size
+        self.num_layers = num_layers
 
         self.emb = nn.Embedding.from_pretrained(pretrained_embeddings)
         self.emb.cpu()
@@ -57,6 +58,25 @@ class Word2Vec_Labeller(nn.Module):
             except ValueError:
                 r.append(len(item) // 2)
         return r
+
+    def save(self, path, extra={}):
+        cp = {
+            "state_dict": self.state_dict(),
+            "hidden_size": self.hidden_size,
+            "num_layers": self.num_layers,
+            **extra
+        }
+        torch.save(cp, path)
+
+    @classmethod
+    def from_pretrained(cls, path):
+        cp = torch.load(path)
+        model = cls(
+            hidden_size=cp["hidden_size"],
+            num_layers=cp["num_layers"]
+        )
+        model.load_state_dict(cp["state_dict"])
+        return model
 
 
 class Word2Vec_Tokenizer:

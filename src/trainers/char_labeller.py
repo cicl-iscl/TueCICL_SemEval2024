@@ -62,8 +62,8 @@ def train_char_level_labeller(args: CharLevelLabellerArgs):
 
 
 def entry():
-    tokenizer = CharTokenizer.from_pretrained("data/charlm_vocab_uncondensed.pkl")
-    cp = torch.load("checkpoints/charlabeller/epoch_1.pt")
+    tokenizer = CharTokenizer.from_pretrained(
+        "data/charlm_vocab_uncondensed.pkl")
     model = CharLevelLabeller(
         embedding_size=8,
         hidden_size=256,
@@ -71,16 +71,15 @@ def entry():
         output_size=2,
         vocab_size=len(tokenizer.idx2word),
     )
-    model.load_state_dict(cp["model"])
     model.to(get_device())
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
-    optimizer.load_state_dict(cp["optimizer"])
     criterion = torch.nn.NLLLoss()
     batch_size = 8
     ds = TaskC_Data(split="train")
     # enrich training data
     ds.import_task_A()
-    train_loader = DataLoader(ds, shuffle=True, batch_size=batch_size, collate_fn=collate_fn_charlevel(tokenizer))
+    train_loader = DataLoader(
+        ds, shuffle=True, batch_size=batch_size, collate_fn=collate_fn_charlevel(tokenizer))
     dev_loader = DataLoader(TaskC_Data(
         split="dev"), batch_size=batch_size, collate_fn=collate_fn_charlevel(tokenizer))
 
@@ -95,7 +94,7 @@ def entry():
         n_epochs=10,
         save_every=2000,
         checkpoint_prefix="charlabeller",
-        start_epoch=cp["epoch"] + 1
+        start_epoch=1
     )
 
     train_char_level_labeller(args)
