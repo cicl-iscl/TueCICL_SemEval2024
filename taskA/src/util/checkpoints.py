@@ -3,14 +3,14 @@ import os
 import torch
 
 from util.core import abspath
-from .validation import evaluate
 
 
 class ProgressTracker:
-    def __init__(self, prefix) -> None:
+    def __init__(self, prefix, evaluate_fn) -> None:
         self.progress = {}
         self.prefix = prefix
         self.basedir = abspath(__file__, "../../checkpoints")
+        self.evaluate_fn = evaluate_fn
 
         try:
             os.makedirs(f"{self.basedir}/{prefix}")
@@ -26,7 +26,7 @@ class ProgressTracker:
             except:
                 print("No previous best found")
                 self.progress["best"] = 0
-        metric = evaluate(model, dev_loader)
+        metric = self.evaluate_fn(model, dev_loader)
         is_best = metric > self.progress["best"]
         extra = {
             "metric": metric
@@ -38,7 +38,7 @@ class ProgressTracker:
         return self.progress["best"], metric
 
     def for_epoch(self, model, optimizer, epoch, dev_loader):
-        metric = evaluate(model, dev_loader)
+        metric = self.evaluate_fn(model, dev_loader)
         extra = {
             "optimizer": optimizer.state_dict(),
             "epoch": epoch,
