@@ -25,7 +25,7 @@ class ProgressTracker:
                 self.progress["best"] = last_best["metric"]
             except:
                 print("No previous best found")
-                self.progress["best"] = 9999
+                self.progress["best"] = 0
         metric = evaluate(model, dev_loader)
         is_best = metric > self.progress["best"]
         extra = {

@@ -42,13 +42,34 @@ def _get_windows(input_ids, attentions, window_size=5000):
 def _process_windows(args: CharLMTrainingArguments, windows, labels, classification_criterion, lm_criterion):
     lstm_hidden = None
     for (input_ids, attentions) in windows:
+
+        # ------------------
+        # Filter no attention
+        # ------------------
+
+        with_active_cols = []
+        for i, attention in enumerate(attentions):
+            if 1 in attention:
+                with_active_cols.append(i)
+
+        input_ids = input_ids[with_active_cols, :]
+        attentions = attentions[with_active_cols, :]
+        labels = labels[with_active_cols]
+        if lstm_hidden is not None:
+            lstm_hidden = tuple([h[:, with_active_cols, :]
+                                 for h in lstm_hidden])
+
+        if input_ids.shape[0] == 0:
+            continue
+
+        # ------------------
+        # Run model
+        # ------------------
+
         args.optimizer.zero_grad()
 
-        lm_out, classifier_out, lstm_hidden = args.model(
+        lm_out, classifier_out, _ = args.model(
             input_ids, attentions, lstm_hidden)
-
-        # detach lstm_hidden to prevent backprop through time
-        lstm_hidden = (lstm_hidden[0].detach(), lstm_hidden[1].detach())
 
         loss = torch.tensor(0, dtype=torch.float32, device=get_device())
 
@@ -64,9 +85,8 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
                 y_gold = input_ids[i, :until]
                 y_pred = y_pred[:-1]
                 y_gold = y_gold[1:]
-                if y_pred.shape[0] > 0:
-                    loss_update = lm_criterion(y_pred, y_gold)
-                    loss += loss_update
+                loss_update = lm_criterion(y_pred, y_gold)
+                loss += loss_update
 
         # ------------------
         # Classifier loss
@@ -80,6 +100,11 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
 
         loss.backward()
         args.optimizer.step()
+
+        with torch.no_grad():
+            # prepare for next iteration
+            _, _, lstm_hidden = args.model(input_ids, attentions, lstm_hidden)
+            lstm_hidden = tuple([h.detach() for h in lstm_hidden])
 
 
 def train_charlm(args: CharLMTrainingArguments):
@@ -101,9 +126,9 @@ def train_charlm(args: CharLMTrainingArguments):
                 pbar.update(1)
 
                 if i % args.save_every == 0 and i > 0:
-                    best, metric = tracker.for_steps(
+                    best, latest = tracker.for_steps(
                         args.model, args.dev_loader)
-                    pbar.set_postfix({"best": best, "metric": metric})
+                    pbar.set_postfix({"best": best, "latest": latest})
         tracker.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
 
 
@@ -114,8 +139,8 @@ def entry(args):
         vocab_size=len(tokenizer.vocab),
         aggregate_fn="mean",
         emb_size=8,
-        hidden_size=256,
-        num_layers=3
+        hidden_size=128,
+        num_layers=1
     )
     model.to(get_device())
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
@@ -135,7 +160,7 @@ def entry(args):
     )
 
     training_args = CharLMTrainingArguments(
-        checkpoint_prefix="charLM_256_3_full",
+        checkpoint_prefix="test",
         train_loader=train_dataloader,
         dev_loader=dev_dataloader,
         model=model,
