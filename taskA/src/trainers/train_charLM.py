@@ -1,5 +1,7 @@
+from argparse import ArgumentParser
 from dataclasses import dataclass
 from pandas import isna
+from sklearn.metrics import classification_report, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 
 import torch
@@ -15,6 +17,45 @@ from models.charLM import CharLM, CharLMTokenizer
 from util.checkpoints import ProgressTracker
 
 from util.device import get_device
+
+
+def add_args(parser: ArgumentParser):
+    group = parser.add_argument_group("CharLM")
+    group.add_argument("--charlm-window-size", type=int, default=5000)
+    group.add_argument("--charlm-emb-size", type=int, default=8)
+    group.add_argument("--charlm-hidden-size", type=int, default=128)
+    group.add_argument("--charlm-num-layers", type=int, default=1)
+    group.add_argument("--charlm-aggregate-fn", type=str, default="mean")
+    group.add_argument("--charlm-lr", type=float, default=0.001)
+    group.add_argument("--charlm-clip", type=float, default=None)
+    group.add_argument("--charlm-n-epochs", type=int, default=5)
+    group.add_argument("--charlm-save-every", type=int, default=100)
+    group.add_argument("--charlm-checkpoint-prefix", type=str,
+                       default="charlm")
+    group.add_argument("--charlm-batch-size", type=int, default=8)
+    group.add_argument("--charlm-resume-path", type=str, default=None)
+    group.add_argument("--charlm-tokenizer-type", type=str, default="uncondensed", choices=[
+        "condensed", "uncondensed"])
+
+
+def evaluate(model, dev_dataloader, f1_only=True):
+    y_pred = []
+    y_gold = []
+    with torch.no_grad():
+        for input_ids, attentions, labels in dev_dataloader:
+            pred = model.predict(input_ids, attentions)
+            for i in range(pred.shape[0]):
+                y_pred.append(pred[i].item())
+                y_gold.append(labels[i].item())
+
+    r = classification_report(y_gold, y_pred, zero_division=0.0)
+    _, _, f1, _ = precision_recall_fscore_support(
+        y_gold, y_pred, average="macro", zero_division=0.0)
+
+    if f1_only:
+        return f1
+
+    return f1, r
 
 
 @dataclass
@@ -112,9 +153,9 @@ def train_charlm(args: CharLMTrainingArguments):
     lm_criterion = nn.NLLLoss()
 
     i = 0
+    tracker = ProgressTracker(args.checkpoint_prefix, evaluate_fn=evaluate)
     for epoch in range(args.start_epoch, args.n_epochs + 1):
         args.model.train()
-        tracker = ProgressTracker(args.checkpoint_prefix)
         with tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
             for input_ids, attentions, labels in args.train_loader:

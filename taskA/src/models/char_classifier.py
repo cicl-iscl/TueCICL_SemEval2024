@@ -7,15 +7,13 @@ import torch.nn.functional as F
 from util.device import get_device
 
 
-class CharLM(nn.Module):
-    def __init__(self, vocab_size=None, emb_size=8, hidden_size=1024, num_layers=1, aggregate_fn="mean") -> None:
+class CharClassifier(nn.Module):
+    def __init__(self, vocab_size=None, emb_size=8, hidden_size=1024, num_layers=1,) -> None:
         super().__init__()
-
         self.vocab_size = vocab_size
         self.emb_size = emb_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.aggregate_fn = aggregate_fn
 
         self.emb = nn.Embedding(vocab_size, emb_size)
         self.lstm = nn.LSTM(
@@ -24,51 +22,18 @@ class CharLM(nn.Module):
             num_layers=self.num_layers,
             batch_first=True,
         )
-        self.lstm2lm = nn.Linear(hidden_size, vocab_size)
-        self.lstm2class = nn.Linear(hidden_size, 2)
+        self.lstm2out = nn.Linear(hidden_size, 2)
 
-    def _get_means(self, tensors, attentions):
-        # Function computes embedding averages, but taking out the PAD tokens, as they should not contribute to MEAN.
-        # Written kinda complicated to avoid copying tensors as much as possible, a previous solution was extremely slow because of
-        # such copy and slice operations
-        batch_size, seq_len, hidden_size = tensors.shape
-        filter = attentions.reshape((batch_size, seq_len, 1)).expand(
-            (batch_size, seq_len, hidden_size))
-        filtered = torch.where(filter > 0, tensors, 0)
-
-        l = attentions.sum(dim=1).reshape(-1, 1)
-        s = filtered.sum(dim=1)
-
-        for i in range(batch_size):
-            if l[i] == 0:
-                l[i] = 1
-
-        return s / l
-
-    def _get_max(tensors):
-        return torch.max(tensors, dim=1)
-
-    def aggregate(self, tensors, attentions):
-        if self.aggregate_fn == "mean":
-            return self._get_means(tensors, attentions)
-        elif self.aggregate == "max":
-            return self._get_max(tensors)
-        else:
-            raise NotImplementedError()
-
-    def forward(self, input_ids, attention, lstm_hidden=None):
+    def forward(self, input_ids, lstm_hidden=None):
         if lstm_hidden is None:
             lstm_hidden = self.init_lstm_hidden(input_ids.shape[0])
 
         embedded = self.emb(input_ids)
         out, lstm_hidden = self.lstm(embedded, lstm_hidden)
-
-        lm_out = self.lstm2lm(out)
-        lm_out = F.log_softmax(lm_out, dim=-1)
-        means_for_classification = self._get_means(out, attention)
-        classification_out = self.lstm2class(means_for_classification)
-        classification_out = F.log_softmax(classification_out, dim=-1)
-        return lm_out, classification_out, lstm_hidden
+        out = out[:, -1, :]
+        out = self.lstm2out(out)
+        out = F.log_softmax(out, dim=1)
+        return out, lstm_hidden
 
     def init_lstm_hidden(self, batch_size):
         h = torch.zeros((self.num_layers, batch_size, self.hidden_size),
@@ -77,10 +42,9 @@ class CharLM(nn.Module):
                         device=get_device())
         return (h, c)
 
-    def predict(self, input_ids, attention):
-        _, out, _ = self.forward(input_ids, attention)
-        out = out.argmax(dim=1)
-        return out
+    def predict(self, input_ids):
+        out, _ = self(input_ids)
+        return out.argmax(dim=1)
 
     def save(self, path, extra={}):
         save_data = {
@@ -89,7 +53,6 @@ class CharLM(nn.Module):
             "emb_size": self.emb_size,
             "hidden_size": self.hidden_size,
             "num_layers": self.num_layers,
-            "aggregate_fn": self.aggregate_fn,
             **extra
         }
         torch.save(save_data, path)
@@ -102,13 +65,12 @@ class CharLM(nn.Module):
             emb_size=save_data["emb_size"],
             hidden_size=save_data["hidden_size"],
             num_layers=save_data["num_layers"],
-            aggregate_fn=save_data["aggregate_fn"]
         )
         model.load_state_dict(save_data["state_dict"])
         return model
 
 
-class CharLMTokenizer:
+class CharClassifierTokenizer:
     def __init__(self, idx2word, word2idx, vocab) -> None:
         self.idx2word = idx2word
         self.word2idx = word2idx
