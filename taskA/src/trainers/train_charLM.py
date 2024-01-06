@@ -47,21 +47,6 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
         # Filter no attention
         # ------------------
 
-        with_active_cols = []
-        for i, attention in enumerate(attentions):
-            if 1 in attention:
-                with_active_cols.append(i)
-
-        input_ids = input_ids[with_active_cols, :]
-        attentions = attentions[with_active_cols, :]
-        labels = labels[with_active_cols]
-        if lstm_hidden is not None:
-            lstm_hidden = tuple([h[:, with_active_cols, :]
-                                 for h in lstm_hidden])
-
-        if input_ids.shape[0] == 0:
-            continue
-
         # ------------------
         # Run model
         # ------------------
@@ -85,6 +70,8 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
                 y_gold = input_ids[i, :until]
                 y_pred = y_pred[:-1]
                 y_gold = y_gold[1:]
+                if y_pred.shape[0] == 0:
+                    continue
                 loss_update = lm_criterion(y_pred, y_gold)
                 loss += loss_update
 

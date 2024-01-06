@@ -37,6 +37,9 @@ class CharLM(nn.Module):
         filtered = torch.where(filter > 0, tensors, 0)
         l = attentions.sum(dim=1).reshape(-1, 1)
         s = filtered.sum(dim=1)
+
+        if l[0].item() == 0:
+            l = l + 1
         return s / l
 
     def _get_max(tensors):
