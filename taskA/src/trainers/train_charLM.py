@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pandas import isna
 from torch.utils.data import DataLoader
 
 import torch
@@ -75,11 +76,22 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
                 loss_update = lm_criterion(y_pred, y_gold)
                 loss += loss_update
 
+                if torch.isnan(loss):
+                    print("NAN loss")
+
         # ------------------
         # Classifier loss
         # ------------------
-        loss_update = classification_criterion(classifier_out, labels)
-        loss += loss_update
+
+        with_attention = []
+        for i in range(attentions.shape[0]):
+            if 1 in attentions[i]:
+                with_attention.append(i)
+
+        if len(with_attention) != 0:
+            loss_update = classification_criterion(
+                classifier_out[with_attention], labels[with_attention])
+            loss += loss_update
 
         # ------------------
         # Backprop

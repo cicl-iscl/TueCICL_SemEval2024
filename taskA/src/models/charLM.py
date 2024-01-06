@@ -35,11 +35,14 @@ class CharLM(nn.Module):
         filter = attentions.reshape((batch_size, seq_len, 1)).expand(
             (batch_size, seq_len, hidden_size))
         filtered = torch.where(filter > 0, tensors, 0)
+
         l = attentions.sum(dim=1).reshape(-1, 1)
         s = filtered.sum(dim=1)
 
-        if l[0].item() == 0:
-            l = l + 1
+        for i in range(batch_size):
+            if l[i] == 0:
+                l[i] = 1
+
         return s / l
 
     def _get_max(tensors):
@@ -59,6 +62,7 @@ class CharLM(nn.Module):
 
         embedded = self.emb(input_ids)
         out, lstm_hidden = self.lstm(embedded, lstm_hidden)
+
         lm_out = self.lstm2lm(out)
         lm_out = F.log_softmax(lm_out, dim=-1)
         means_for_classification = self._get_means(out, attention)
