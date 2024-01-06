@@ -3,13 +3,13 @@ source env/bin/activate
 cd src
 
 python3 script.py train_charlm \
-    --char-class-checkpoint-prefix char-class-test \
-    --char-class-num-layers 3 \
-    --char-class-hidden-size 256 \
-    --char-class-save-every 2000 \
-    --char-class-emb-size 8 \
-    --char-class-lr 0.001 \
-    --char-class-n-epochs 5 \
-    --char-class-batch-size 8 \
-    --char-class-tokenizer-type uncondensed \
-    --charlm-tokenizer-type uncondensed 
+    --charlm-checkpoint-prefix charlm-test \
+    --charlm-num-layers 3 \
+    --charlm-hidden-size 256 \
+    --charlm-save-every 2000 \
+    --charlm-emb-size 8 \
+    --charlm-lr 0.001 \
+    --charlm-n-epochs 5 \
+    --charlm-batch-size 8 \
+    --charlm-tokenizer-type uncondensed \
+    --charlm-window-size 5000 

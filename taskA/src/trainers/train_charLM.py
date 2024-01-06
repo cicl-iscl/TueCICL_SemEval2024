@@ -36,6 +36,8 @@ def add_args(parser: ArgumentParser):
     group.add_argument("--charlm-resume-path", type=str, default=None)
     group.add_argument("--charlm-tokenizer-type", type=str, default="uncondensed", choices=[
         "condensed", "uncondensed"])
+    group.add_argument("--charlm-tokenizer-max-len", type=int,
+                       default=15_000, help="Applied to dev set only")
 
 
 def evaluate(model, dev_dataloader, f1_only=True):
@@ -174,42 +176,44 @@ def train_charlm(args: CharLMTrainingArguments):
 
 
 def entry(args):
-    tokenizer = CharLMTokenizer.from_pretrained(
-        abspath(__file__, "../../data/charlm_vocab_uncondensed.pkl"))
+    tokenizer_path = abspath(
+        __file__, f"../../data/charlm_vocab_{args.charlm_tokenizer_type}.pkl")
+    tokenizer = CharLMTokenizer.from_pretrained(tokenizer_path)
     model = CharLM(
         vocab_size=len(tokenizer.vocab),
         aggregate_fn="mean",
-        emb_size=8,
-        hidden_size=256,
-        num_layers=1
+        emb_size=args.charlm_emb_size,
+        hidden_size=args.charlm_hidden_size,
+        num_layers=args.charlm_num_layers,
     )
     model.to(get_device())
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.charlm_lr)
+    start_epoch = 1
 
     train_dataloader = DataLoader(
         TaskA_Dataset(split="train"),
-        batch_size=8,
+        batch_size=args.charlm_batch_size,
         shuffle=True,
         collate_fn=collate_fn(tokenizer)
     )
 
     dev_dataloader = DataLoader(
         TaskA_Dataset(split="dev"),
-        batch_size=8,
+        batch_size=args.charlm_batch_size,
         shuffle=True,
-        collate_fn=collate_fn(tokenizer, max_len=15_000)
+        collate_fn=collate_fn(tokenizer, max_len=args.charlm_tokenizer_max_len)
     )
 
     training_args = CharLMTrainingArguments(
-        checkpoint_prefix="charlm_256_1",
+        checkpoint_prefix=args.charlm_checkpoint_prefix,
         train_loader=train_dataloader,
         dev_loader=dev_dataloader,
         model=model,
         optimizer=optimizer,
         device=get_device(),
-        n_epochs=5,
-        start_epoch=1,
-        save_every=2000
+        n_epochs=args.charlm_n_epochs,
+        start_epoch=start_epoch,
+        save_every=args.charlm_save_every,
     )
 
     train_charlm(training_args)
