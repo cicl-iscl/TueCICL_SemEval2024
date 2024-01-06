@@ -131,7 +131,7 @@ def entry(args):
         TaskA_Dataset(split="dev"),
         batch_size=8,
         shuffle=True,
-        collate_fn=collate_fn(tokenizer)
+        collate_fn=collate_fn(tokenizer, max_len=15_000)
     )
 
     training_args = CharLMTrainingArguments(
