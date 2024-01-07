@@ -21,6 +21,7 @@ from util.device import get_device
 
 def add_args(parser: ArgumentParser):
     group = parser.add_argument_group("CharLM")
+    group.add_argument("--do-train", type=bool)
     group.add_argument("--charlm-window-size", type=int, default=5000)
     group.add_argument("--charlm-emb-size", type=int, default=8)
     group.add_argument("--charlm-hidden-size", type=int, default=128)
