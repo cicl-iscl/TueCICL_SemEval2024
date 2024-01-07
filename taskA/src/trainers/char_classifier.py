@@ -14,11 +14,15 @@ from torch.utils.data import DataLoader
 
 def add_args(parser: ArgumentParser):
     group = parser.add_argument_group("CharClassifier")
+    group.add_argument("--do-train", type=bool, default=False)
+    group.add_argument("--load-model", type=str, default=None)
     group.add_argument("--char-class-emb-size", type=int, default=8)
     group.add_argument("--char-class-hidden-size", type=int, default=128)
     group.add_argument("--char-class-num-layers", type=int, default=1)
     group.add_argument("--char-class-lr", type=float, default=0.001)
     group.add_argument("--char-class-clip", type=float, default=None)
+    group.add_argument("--start-epoch", type=int, default=1,
+                       help="For naming checkpoints")
     group.add_argument("--char-class-n-epochs", type=int, default=5)
     group.add_argument("--char-class-save-every", type=int, default=100)
     group.add_argument("--char-class-checkpoint-prefix", type=str,
@@ -97,25 +101,23 @@ def entry(args):
         __file__, f"../../data/charlm_vocab_{args.char_class_tokenizer_type}.pkl")
 
     tokenizer = CharClassifierTokenizer.from_pretrained(tokenizer_path)
-    model = CharClassifier(
-        vocab_size=len(tokenizer.vocab),
-        emb_size=args.char_class_emb_size,
-        hidden_size=args.char_class_hidden_size,
-        num_layers=args.char_class_num_layers,
-    )
+
+    if args.load_model is not None:
+        model = CharClassifier.from_pretrained(
+            abspath(__file__, "../../checkpoints/{args.load_model}}"),
+        )
+    else:
+        model = CharClassifier(
+            vocab_size=len(tokenizer.vocab),
+            emb_size=args.char_class_emb_size,
+            hidden_size=args.char_class_hidden_size,
+            num_layers=args.char_class_num_layers,
+        )
 
     model.to(get_device())
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.char_class_lr)
     criterion = torch.nn.NLLLoss()
-    start_epoch = 1
-
-    train_dataloader = DataLoader(
-        TaskA_Dataset(split="train"),
-        batch_size=args.char_class_batch_size,
-        shuffle=True,
-        collate_fn=collate_fn(
-            tokenizer, max_len=args.char_class_tokenizer_max_len)
-    )
+    start_epoch = args.start_epoch
 
     dev_dataloader = DataLoader(
         TaskA_Dataset(split="dev"),
@@ -125,17 +127,26 @@ def entry(args):
             tokenizer, max_len=args.char_class_tokenizer_max_len)
     )
 
-    training_args = CharClassifierTrainingArguments(
-        checkpoint_prefix=args.char_class_checkpoint_prefix,
-        train_loader=train_dataloader,
-        dev_loader=dev_dataloader,
-        model=model,
-        optimizer=optimizer,
-        device=get_device(),
-        n_epochs=args.char_class_n_epochs,
-        start_epoch=start_epoch,
-        save_every=args.char_class_save_every,
-        criterion=criterion
-    )
+    if args.do_train:
+        train_dataloader = DataLoader(
+            TaskA_Dataset(split="train"),
+            batch_size=args.char_class_batch_size,
+            shuffle=True,
+            collate_fn=collate_fn(
+                tokenizer, max_len=args.char_class_tokenizer_max_len)
+        )
 
-    train_char_classifier(training_args)
+        training_args = CharClassifierTrainingArguments(
+            checkpoint_prefix=args.char_class_checkpoint_prefix,
+            train_loader=train_dataloader,
+            dev_loader=dev_dataloader,
+            model=model,
+            optimizer=optimizer,
+            device=get_device(),
+            n_epochs=args.char_class_n_epochs,
+            start_epoch=start_epoch,
+            save_every=args.char_class_save_every,
+            criterion=criterion
+        )
+
+        train_char_classifier(training_args)
