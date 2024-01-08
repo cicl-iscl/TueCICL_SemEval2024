@@ -68,6 +68,9 @@ class CharClassifier(nn.Module):
         )
         model.load_state_dict(save_data["state_dict"])
         return model
+    
+    def __str__(self):
+        return f"CharClassifier<vocab={self.vocab_size}, emb={self.emb_size}, h={self.hidden_size}, l={self.num_layers}>"
 
 
 class CharClassifierTokenizer:

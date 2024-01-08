@@ -16,15 +16,17 @@ class ProgressTracker:
             os.makedirs(f"{self.basedir}/{prefix}")
         except:
             pass
-
-    def for_steps(self, model, dev_loader):
-        best_path = f"{self.basedir}/{self.prefix}/best.pt"
+        
         if "best" not in self.progress:
             try:
+                best_path = f"{self.basedir}/{self.prefix}/best.pt"
                 last_best = torch.load(best_path)
                 self.progress["best"] = last_best["metric"]
             except:
                 self.progress["best"] = 0
+
+    def for_steps(self, model, dev_loader):
+        best_path = f"{self.basedir}/{self.prefix}/best.pt"
         metric = self.evaluate_fn(model, dev_loader)
         is_best = metric > self.progress["best"]
         extra = {

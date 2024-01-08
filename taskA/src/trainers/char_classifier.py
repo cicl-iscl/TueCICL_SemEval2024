@@ -14,14 +14,14 @@ from torch.utils.data import DataLoader
 
 def add_args(parser: ArgumentParser):
     group = parser.add_argument_group("CharClassifier")
-    group.add_argument("--do-train", type=bool, default=False)
-    group.add_argument("--load-model", type=str, default=None)
+    group.add_argument("--char-class-do-train", type=bool, default=False)
+    group.add_argument("--char-class-load-model", type=str, default=None)
     group.add_argument("--char-class-emb-size", type=int, default=8)
     group.add_argument("--char-class-hidden-size", type=int, default=128)
     group.add_argument("--char-class-num-layers", type=int, default=1)
     group.add_argument("--char-class-lr", type=float, default=0.001)
     group.add_argument("--char-class-clip", type=float, default=None)
-    group.add_argument("--start-epoch", type=int, default=1,
+    group.add_argument("--char-class-start-epoch", type=int, default=1,
                        help="For naming checkpoints")
     group.add_argument("--char-class-n-epochs", type=int, default=5)
     group.add_argument("--char-class-save-every", type=int, default=100)
@@ -102,10 +102,11 @@ def entry(args):
 
     tokenizer = CharClassifierTokenizer.from_pretrained(tokenizer_path)
 
-    if args.load_model is not None:
+    if args.char_class_load_model is not None:
         model = CharClassifier.from_pretrained(
-            abspath(__file__, "../../checkpoints/{args.load_model}}"),
+            abspath(__file__, f"../../checkpoints/{args.char_class_load_model}"),
         )
+        print(model)
     else:
         model = CharClassifier(
             vocab_size=len(tokenizer.vocab),
@@ -117,7 +118,14 @@ def entry(args):
     model.to(get_device())
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.char_class_lr)
     criterion = torch.nn.NLLLoss()
-    start_epoch = args.start_epoch
+    start_epoch = args.char_class_start_epoch
+    
+    if args.char_class_do_train and args.char_class_load_model:
+        save_data = torch.load(abspath(
+            __file__, f"../../checkpoints/{args.char_class_load_model}"))
+        if "optimizer" in save_data:
+            print("Loading optimizer state from checkpoint")
+            optimizer.load_state_dict(save_data["optimizer"])
 
     dev_dataloader = DataLoader(
         TaskA_Dataset(split="dev"),
@@ -127,7 +135,7 @@ def entry(args):
             tokenizer, max_len=args.char_class_tokenizer_max_len)
     )
 
-    if args.do_train:
+    if args.char_class_do_train:
         train_dataloader = DataLoader(
             TaskA_Dataset(split="train"),
             batch_size=args.char_class_batch_size,
