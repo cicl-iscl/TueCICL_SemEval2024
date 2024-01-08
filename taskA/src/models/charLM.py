@@ -48,11 +48,13 @@ class CharLM(nn.Module):
     def _get_max(tensors):
         return torch.max(tensors, dim=1)
 
-    def aggregate(self, tensors, attentions):
+    def _aggregate(self, tensors, attentions):
         if self.aggregate_fn == "mean":
             return self._get_means(tensors, attentions)
         elif self.aggregate == "max":
             return self._get_max(tensors)
+        elif self.aggregate == "last":
+            return tensors[:, -1, :]
         else:
             raise NotImplementedError()
 
@@ -65,8 +67,8 @@ class CharLM(nn.Module):
 
         lm_out = self.lstm2lm(out)
         lm_out = F.log_softmax(lm_out, dim=-1)
-        means_for_classification = self._get_means(out, attention)
-        classification_out = self.lstm2class(means_for_classification)
+        aggregated = self._aggregate(out, attention)
+        classification_out = self.lstm2class(aggregated)
         classification_out = F.log_softmax(classification_out, dim=-1)
         return lm_out, classification_out, lstm_hidden
 

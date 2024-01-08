@@ -21,14 +21,17 @@ from util.device import get_device
 
 def add_args(parser: ArgumentParser):
     group = parser.add_argument_group("CharLM")
-    group.add_argument("--do-train", type=bool)
+    group.add_argument("--charlm-load-model", type=str, default=None)
+    group.add_argument("--charlm-do-train", type=bool, default=False)
     group.add_argument("--charlm-window-size", type=int, default=5000)
     group.add_argument("--charlm-emb-size", type=int, default=8)
     group.add_argument("--charlm-hidden-size", type=int, default=128)
     group.add_argument("--charlm-num-layers", type=int, default=1)
-    group.add_argument("--charlm-aggregate-fn", type=str, default="mean")
+    group.add_argument("--charlm-aggregate-fn", type=str,
+                       default="mean", choices=["mean", "max", "last"])
     group.add_argument("--charlm-lr", type=float, default=0.001)
     group.add_argument("--charlm-clip", type=float, default=None)
+    group.add_argument("--charlm-start-epoch", type=int, default=1)
     group.add_argument("--charlm-n-epochs", type=int, default=5)
     group.add_argument("--charlm-save-every", type=int, default=100)
     group.add_argument("--charlm-checkpoint-prefix", type=str,
@@ -180,23 +183,28 @@ def entry(args):
     tokenizer_path = abspath(
         __file__, f"../../data/charlm_vocab_{args.charlm_tokenizer_type}.pkl")
     tokenizer = CharLMTokenizer.from_pretrained(tokenizer_path)
-    model = CharLM(
-        vocab_size=len(tokenizer.vocab),
-        aggregate_fn="mean",
-        emb_size=args.charlm_emb_size,
-        hidden_size=args.charlm_hidden_size,
-        num_layers=args.charlm_num_layers,
-    )
-    model.to(get_device())
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.charlm_lr)
-    start_epoch = 1
 
-    train_dataloader = DataLoader(
-        TaskA_Dataset(split="train"),
-        batch_size=args.charlm_batch_size,
-        shuffle=True,
-        collate_fn=collate_fn(tokenizer)
-    )
+    start_epoch = args.charlm_start_epoch
+
+    if args.charlm_load_model is not None:
+        model_path = abspath(
+            __file__, f"../../checkpoints/{args.charlm_load_model}")
+        model = CharLM.from_pretrained(model_path)
+        save_data = torch.load(model_path)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.charlm_lr)
+        if args.charlm_do_train and "optimizer" in save_data:
+            print("Loading optimizer state from checkpoint")
+            optimizer.load_state_dict(save_data["optimizer"])
+    else:
+        model = CharLM(
+            vocab_size=len(tokenizer.vocab),
+            aggregate_fn="mean",
+            emb_size=args.charlm_emb_size,
+            hidden_size=args.charlm_hidden_size,
+            num_layers=args.charlm_num_layers,
+        )
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.charlm_lr)
+    model.to(get_device())
 
     dev_dataloader = DataLoader(
         TaskA_Dataset(split="dev"),
@@ -205,16 +213,24 @@ def entry(args):
         collate_fn=collate_fn(tokenizer, max_len=args.charlm_tokenizer_max_len)
     )
 
-    training_args = CharLMTrainingArguments(
-        checkpoint_prefix=args.charlm_checkpoint_prefix,
-        train_loader=train_dataloader,
-        dev_loader=dev_dataloader,
-        model=model,
-        optimizer=optimizer,
-        device=get_device(),
-        n_epochs=args.charlm_n_epochs,
-        start_epoch=start_epoch,
-        save_every=args.charlm_save_every,
-    )
+    if args.charlm_do_train:
+        train_dataloader = DataLoader(
+            TaskA_Dataset(split="train"),
+            batch_size=args.charlm_batch_size,
+            shuffle=True,
+            collate_fn=collate_fn(tokenizer)
+        )
 
-    train_charlm(training_args)
+        training_args = CharLMTrainingArguments(
+            checkpoint_prefix=args.charlm_checkpoint_prefix,
+            train_loader=train_dataloader,
+            dev_loader=dev_dataloader,
+            model=model,
+            optimizer=optimizer,
+            device=get_device(),
+            n_epochs=args.charlm_n_epochs,
+            start_epoch=start_epoch,
+            save_every=args.charlm_save_every,
+        )
+
+        train_charlm(training_args)
