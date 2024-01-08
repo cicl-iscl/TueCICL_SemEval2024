@@ -46,7 +46,7 @@ class CharLM(nn.Module):
         return s / l
 
     def _get_max(tensors):
-        return torch.max(tensors, dim=1)
+        return torch.max(tensors, dim=1).values
 
     def _aggregate(self, tensors, attentions):
         if self.aggregate_fn == "mean":
