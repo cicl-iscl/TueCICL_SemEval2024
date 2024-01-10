@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 from dataclasses import dataclass
+from typing import Tuple
 from pandas import isna
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 from torch.utils.data import DataLoader
@@ -79,17 +80,25 @@ class CharLMTrainingArguments:
     window_size: int = 5000
 
 
-def _get_windows(input_ids, attentions, window_size=5000):
+def _get_windows(input_ids, attentions, window_size=4000, context_size=1000) -> Tuple[torch.Tensor, torch.Tensor, int]:
     l = input_ids.shape[1]
     p = 0
+    it = 0
     while p < l:
-        yield input_ids[:, p:p + window_size], attentions[:, p:p + window_size]
+        if it == 0:
+            yield input_ids[:, p:p+window_size], attentions[:, p:p+window_size], 0
+
+        else:
+            start = p - context_size
+            end = p + window_size + context_size
+            yield input_ids[:, start:end], attentions[:, start:end], context_size
+        it += 1
         p += window_size
 
 
 def _process_windows(args: CharLMTrainingArguments, windows, labels, classification_criterion, lm_criterion):
     lstm_hidden = None
-    for (input_ids, attentions) in windows:
+    for (input_ids, attentions, context_boundary) in windows:
 
         # ------------------
         # Filter no attention
@@ -113,10 +122,13 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
         for i in range(input_ids.shape[0]):
             if labels[i].item() == 0:
                 # only train LM on human texts
-                until = attentions[i].cpu().tolist().index(
-                    0) if 0 in attentions[i] else input_ids.shape[1]
-                y_pred = lm_out[i, :until]
-                y_gold = input_ids[i, :until]
+                _out = lm_out[:, context_boundary:]
+                _labels = input_ids[:, context_boundary:]
+                _att = attentions[:, context_boundary:]
+                until = _att[i].cpu().tolist().index(
+                    0) if 0 in _att[i] else input_ids.shape[1]
+                y_pred = _out[i, :until]
+                y_gold = _labels[i, :until]
                 y_pred = y_pred[:-1]
                 y_gold = y_gold[1:]
                 if y_pred.shape[0] == 0:
