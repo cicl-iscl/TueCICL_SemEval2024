@@ -180,6 +180,8 @@ class CharLM(nn.Module):
         embedded = self.emb(input_ids)
         out, _ = self.lstm(embedded)
         lm_out = self.lstm2lm(out)
+        if isnan(lm_out[0]):
+            print("gotcha!")
         lm_out = F.log_softmax(lm_out, dim=-1)
         means_for_classification = self._get_means(out, attention)
         classification_out = self.lstm2class(means_for_classification)
