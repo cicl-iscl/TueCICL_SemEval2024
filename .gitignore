@@ -1,1 +1,10 @@
 .DS_Store
+env
+__pycache__
+wiki2vec
+src/data
+keys
+data
+.ipynb_checkpoints
+checkpoints
+.vscode
