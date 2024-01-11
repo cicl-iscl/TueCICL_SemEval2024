@@ -145,7 +145,7 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
 
         with_attention = []
         for i in range(attentions.shape[0]):
-            if 1 in attentions[i]:
+            if 1 in attentions[i, context_boundary:]:
                 with_attention.append(i)
 
         if len(with_attention) != 0:
