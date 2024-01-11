@@ -210,7 +210,7 @@ def entry(args):
     else:
         model = CharLM(
             vocab_size=len(tokenizer.vocab),
-            aggregate_fn="mean",
+            aggregate_fn=args.charlm_aggregate_fn,
             emb_size=args.charlm_emb_size,
             hidden_size=args.charlm_hidden_size,
             num_layers=args.charlm_num_layers,
