@@ -63,9 +63,9 @@ class CharLM(nn.Module):
     def _aggregate(self, tensors, attentions):
         if self.aggregate_fn == "mean":
             return self._get_means(tensors, attentions)
-        elif self.aggregate == "max":
+        elif self.aggregate_fn == "max":
             return self._get_max(tensors)
-        elif self.aggregate == "last":
+        elif self.aggregate_fn == "last":
             return self._get_last(tensors, attentions)
         else:
             raise NotImplementedError()
