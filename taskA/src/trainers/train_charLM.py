@@ -218,7 +218,7 @@ def entry(args):
         TaskA_Dataset(split="dev"),
         batch_size=args.charlm_batch_size,
         shuffle=True,
-        collate_fn=collate_fn(tokenizer, max_len=args.charlm_tokenizer_max_len)
+        collate_fn=collate_fn(tokenizer, max_len=args.charlm_tokenizer_max_len),
     )
 
     if args.charlm_do_train:
@@ -226,7 +226,8 @@ def entry(args):
             TaskA_Dataset(split="train"),
             batch_size=args.charlm_batch_size,
             shuffle=True,
-            collate_fn=collate_fn(tokenizer)
+            collate_fn=collate_fn(tokenizer),
+            drop_last=True
         )
 
         training_args = CharLMTrainingArguments(
