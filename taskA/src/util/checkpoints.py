@@ -34,8 +34,8 @@ class ProgressTracker:
         }
         if is_best:
             self.progress["best"] = metric
-            model.save(best_path, extra)
-        model.save(f"{self.basedir}/{self.prefix}/latest.pt", extra)
+            model.module.save(best_path, extra)
+        model.module.save(f"{self.basedir}/{self.prefix}/latest.pt", extra)
         return self.progress["best"], metric
 
     def for_epoch(self, model, optimizer, epoch, dev_loader):
@@ -46,4 +46,4 @@ class ProgressTracker:
             "metric": metric
         }
         fname = f"{self.basedir}/{self.prefix}/epoch_{epoch}.pt"
-        model.save(fname, extra)
+        model.module.save(fname, extra)

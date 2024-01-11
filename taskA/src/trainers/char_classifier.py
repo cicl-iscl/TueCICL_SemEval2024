@@ -68,7 +68,7 @@ class CharClassifierTrainingArguments:
     clip: float = None
     checkpoint_prefix: str = "charLM"
     start_epoch: int = 1
-    window_size: int = 5000,
+    window_size: int = 5000
 
 
 def train_char_classifier(args: CharClassifierTrainingArguments):

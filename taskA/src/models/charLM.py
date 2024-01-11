@@ -34,7 +34,8 @@ class CharLM(nn.Module):
         batch_size, seq_len, hidden_size = tensors.shape
         filter = attentions.reshape((batch_size, seq_len, 1)).expand(
             (batch_size, seq_len, hidden_size))
-        filtered = torch.where(filter > 0, tensors, 0)
+        zero = torch.tensor(0, dtype=torch.float32, device=get_device())
+        filtered = torch.where(filter > zero, tensors, zero)
 
         l = attentions.sum(dim=1).reshape(-1, 1)
         s = filtered.sum(dim=1)
