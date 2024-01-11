@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from typing import Tuple
-from pandas import isna
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 
@@ -25,6 +24,7 @@ def add_args(parser: ArgumentParser):
     group.add_argument("--charlm-load-model", type=str, default=None)
     group.add_argument("--charlm-do-train", type=bool, default=False)
     group.add_argument("--charlm-window-size", type=int, default=5000)
+    group.add_argument("--charlm-context-size", type=int, default=1000)
     group.add_argument("--charlm-emb-size", type=int, default=8)
     group.add_argument("--charlm-hidden-size", type=int, default=128)
     group.add_argument("--charlm-num-layers", type=int, default=1)
@@ -48,9 +48,10 @@ def add_args(parser: ArgumentParser):
 def evaluate(model, dev_dataloader, f1_only=True):
     y_pred = []
     y_gold = []
+    _model = model.module if model.module else model
     with torch.no_grad():
         for input_ids, attentions, labels in dev_dataloader:
-            pred = model.predict(input_ids, attentions)
+            pred = _model.predict(input_ids, attentions)
             for i in range(pred.shape[0]):
                 y_pred.append(pred[i].item())
                 y_gold.append(labels[i].item())
@@ -78,6 +79,7 @@ class CharLMTrainingArguments:
     checkpoint_prefix: str = "charLM"
     start_epoch: int = 1
     window_size: int = 5000
+    context_size: int = 1000
 
 
 def _get_windows(input_ids, attentions, window_size=4000, context_size=1000) -> Tuple[torch.Tensor, torch.Tensor, int]:
@@ -217,6 +219,7 @@ def entry(args):
         )
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.charlm_lr)
     model.to(get_device())
+    model = nn.DataParallel(model)
 
     dev_dataloader = DataLoader(
         TaskA_Dataset(split="dev"),
@@ -243,6 +246,7 @@ def entry(args):
             n_epochs=args.charlm_n_epochs,
             start_epoch=start_epoch,
             save_every=args.charlm_save_every,
+            context_size=args.charlm_context_size
         )
 
         train_charlm(training_args)
