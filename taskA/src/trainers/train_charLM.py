@@ -99,7 +99,6 @@ def _get_windows(input_ids, attentions, window_size=4000, context_size=1000) -> 
 
 
 def _process_windows(args: CharLMTrainingArguments, windows, labels, classification_criterion, lm_criterion):
-    lstm_hidden = None
     for (input_ids, attentions, context_boundary) in windows:
 
         # ------------------
@@ -112,9 +111,8 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
 
         args.optimizer.zero_grad()
 
-        lm_out, classifier_out, lstm_hidden = args.model(
-            input_ids, attentions, lstm_hidden)
-        lstm_hidden = tuple([h.detach() for h in lstm_hidden])
+        lm_out, classifier_out, _ = args.model(
+            input_ids, attentions)
 
         loss = torch.tensor(0, dtype=torch.float32, device=get_device())
 
@@ -161,11 +159,6 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
 
         loss.backward()
         args.optimizer.step()
-
-        # with torch.no_grad():
-        #     # prepare for next iteration
-        #     _, _, lstm_hidden = args.model(input_ids, attentions, lstm_hidden)
-        #     lstm_hidden = tuple([h.detach() for h in lstm_hidden])
 
 
 def train_charlm(args: CharLMTrainingArguments):
