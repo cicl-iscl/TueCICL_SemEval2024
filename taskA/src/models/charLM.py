@@ -112,6 +112,9 @@ class CharLM(nn.Module):
         }
         torch.save(save_data, path)
 
+    def __str__(self) -> str:
+        return f"CharLM(vocab_size={self.vocab_size}, emb_size={self.emb_size}, hidden_size={self.hidden_size}, num_layers={self.num_layers}, aggregate_fn={self.aggregate_fn}, dropout={self.dropout})"
+
     @classmethod
     def from_pretrained(cls, path):
         save_data = torch.load(path)

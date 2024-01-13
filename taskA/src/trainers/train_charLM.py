@@ -216,13 +216,15 @@ def entry(args):
         )
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.charlm_lr)
     model.to(get_device())
+    print(model)
     model = nn.DataParallel(model)
 
     dev_dataloader = DataLoader(
         TaskA_Dataset(split="dev"),
         batch_size=args.charlm_batch_size,
         shuffle=True,
-        collate_fn=collate_fn(tokenizer, max_len=args.charlm_tokenizer_max_len),
+        collate_fn=collate_fn(
+            tokenizer, max_len=args.charlm_tokenizer_max_len),
     )
 
     if args.charlm_do_train:
