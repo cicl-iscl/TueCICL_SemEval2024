@@ -38,7 +38,6 @@ def add_args(parser: ArgumentParser):
     group.add_argument("--charlm-checkpoint-prefix", type=str,
                        default="charlm")
     group.add_argument("--charlm-batch-size", type=int, default=8)
-    group.add_argument("--charlm-resume-path", type=str, default=None)
     group.add_argument("--charlm-tokenizer-type", type=str, default="uncondensed", choices=[
         "condensed", "uncondensed"])
     group.add_argument("--charlm-tokenizer-max-len", type=int,
