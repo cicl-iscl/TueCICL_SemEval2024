@@ -42,12 +42,14 @@ def add_args(parser: ArgumentParser):
         "condensed", "uncondensed"])
     group.add_argument("--charlm-tokenizer-max-len", type=int,
                        default=15_000, help="Applied to dev set only")
+    group.add_argument("--charlm-dropout", type=float, default=0.0)
 
 
 def evaluate(model, dev_dataloader, f1_only=True):
     y_pred = []
     y_gold = []
     _model = model.module if model.module else model
+    _model.eval()
     with torch.no_grad():
         for input_ids, attentions, labels in dev_dataloader:
             pred = _model.predict(input_ids, attentions)
@@ -181,8 +183,10 @@ def train_charlm(args: CharLMTrainingArguments):
                 if i % args.save_every == 0 and i > 0:
                     best, latest = tracker.for_steps(
                         args.model, args.dev_loader)
+                    args.model.train()
                     pbar.set_postfix({"best": best, "latest": latest})
         tracker.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
+        args.model.train()
 
 
 def entry(args):
@@ -208,6 +212,7 @@ def entry(args):
             emb_size=args.charlm_emb_size,
             hidden_size=args.charlm_hidden_size,
             num_layers=args.charlm_num_layers,
+            dropout=args.charlm_dropout
         )
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.charlm_lr)
     model.to(get_device())

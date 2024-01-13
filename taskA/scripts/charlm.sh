@@ -15,4 +15,5 @@ python3 script.py train_charlm \
     --charlm-batch-size 6 \
     --charlm-tokenizer-type uncondensed \
     --charlm-window-size 4000 \
-    --charlm-context-size 1000 
+    --charlm-context-size 1000 \
+    --charlm-dropout 0.2 \
