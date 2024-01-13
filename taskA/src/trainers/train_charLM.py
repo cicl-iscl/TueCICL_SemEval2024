@@ -49,7 +49,7 @@ def evaluate(model, dev_dataloader, f1_only=True):
     y_pred = []
     y_gold = []
     _model = model.module if model.module else model
-    _model.eval()
+    model.eval()
     with torch.no_grad():
         for input_ids, attentions, labels in dev_dataloader:
             pred = _model.predict(input_ids, attentions)
