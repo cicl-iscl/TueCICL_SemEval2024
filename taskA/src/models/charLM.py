@@ -46,16 +46,27 @@ class CharLM(nn.Module):
 
         return s / l
 
+    def _get_last(self, tensors, attentions):
+        # get last token with attention from each sequence
+        l = torch.zeros(
+            (tensors.shape[0], tensors.shape[-1]), device=get_device(), dtype=torch.float32)
+        for i in range(attentions.shape[0]):
+            last_index = attentions[i].sum(dim=0).long().item() - 1
+            if last_index < 0:
+                last_index = 0
+            l[i] = tensors[i][last_index]
+        return l
+
     def _get_max(tensors):
         return torch.max(tensors, dim=1).values
 
     def _aggregate(self, tensors, attentions):
         if self.aggregate_fn == "mean":
             return self._get_means(tensors, attentions)
-        elif self.aggregate == "max":
+        elif self.aggregate_fn == "max":
             return self._get_max(tensors)
-        elif self.aggregate == "last":
-            return tensors[:, -1, :]
+        elif self.aggregate_fn == "last":
+            return self._get_last(tensors, attentions)
         else:
             raise NotImplementedError()
 

@@ -145,7 +145,7 @@ def _process_windows(args: CharLMTrainingArguments, windows, labels, classificat
 
         with_attention = []
         for i in range(attentions.shape[0]):
-            if 1 in attentions[i]:
+            if 1 in attentions[i, context_boundary:]:
                 with_attention.append(i)
 
         if len(with_attention) != 0:
@@ -205,7 +205,7 @@ def entry(args):
     else:
         model = CharLM(
             vocab_size=len(tokenizer.vocab),
-            aggregate_fn="mean",
+            aggregate_fn=args.charlm_aggregate_fn,
             emb_size=args.charlm_emb_size,
             hidden_size=args.charlm_hidden_size,
             num_layers=args.charlm_num_layers,
