@@ -77,6 +77,7 @@ class CharLM(nn.Module):
             lstm_hidden = self.init_lstm_hidden(input_ids.shape[0])
 
         embedded = self.emb(input_ids)
+        self.lstm.flatten_parameters()
         out, lstm_hidden = self.lstm(embedded, lstm_hidden)
 
         lm_out = self.lstm2lm(out)
