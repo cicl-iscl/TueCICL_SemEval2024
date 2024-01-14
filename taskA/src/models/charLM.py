@@ -8,7 +8,7 @@ from util.device import get_device
 
 
 class CharLM(nn.Module):
-    def __init__(self, vocab_size=None, emb_size=8, hidden_size=1024, num_layers=1, aggregate_fn="mean") -> None:
+    def __init__(self, vocab_size=None, emb_size=8, hidden_size=1024, num_layers=1, aggregate_fn="mean", dropout=0.0) -> None:
         super().__init__()
 
         self.vocab_size = vocab_size
@@ -16,6 +16,7 @@ class CharLM(nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.aggregate_fn = aggregate_fn
+        self.dropout = dropout
 
         self.emb = nn.Embedding(vocab_size, emb_size)
         self.lstm = nn.LSTM(
@@ -23,6 +24,7 @@ class CharLM(nn.Module):
             input_size=self.emb_size,
             num_layers=self.num_layers,
             batch_first=True,
+            dropout=self.dropout
         )
         self.lstm2lm = nn.Linear(hidden_size, vocab_size)
         self.lstm2class = nn.Linear(hidden_size, 2)
@@ -75,6 +77,7 @@ class CharLM(nn.Module):
             lstm_hidden = self.init_lstm_hidden(input_ids.shape[0])
 
         embedded = self.emb(input_ids)
+        self.lstm.flatten_parameters()
         out, lstm_hidden = self.lstm(embedded, lstm_hidden)
 
         lm_out = self.lstm2lm(out)
@@ -104,9 +107,13 @@ class CharLM(nn.Module):
             "hidden_size": self.hidden_size,
             "num_layers": self.num_layers,
             "aggregate_fn": self.aggregate_fn,
+            "dropout": self.dropout,
             **extra
         }
         torch.save(save_data, path)
+
+    def __str__(self) -> str:
+        return f"CharLM(vocab_size={self.vocab_size}, emb_size={self.emb_size}, hidden_size={self.hidden_size}, num_layers={self.num_layers}, aggregate_fn={self.aggregate_fn}, dropout={self.dropout})"
 
     @classmethod
     def from_pretrained(cls, path):
@@ -116,7 +123,8 @@ class CharLM(nn.Module):
             emb_size=save_data["emb_size"],
             hidden_size=save_data["hidden_size"],
             num_layers=save_data["num_layers"],
-            aggregate_fn=save_data["aggregate_fn"]
+            aggregate_fn=save_data["aggregate_fn"],
+            dropout=save_data.get("dropout", 0.0)
         )
         model.load_state_dict(save_data["state_dict"])
         return model
