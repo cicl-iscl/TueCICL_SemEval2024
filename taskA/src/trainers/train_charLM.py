@@ -47,10 +47,10 @@ def evaluate(model, dev_dataloader, f1_only=True):
     model.eval()
     y_pred = []
     y_gold = []
-    _model = model.module if model.module else model
     with torch.no_grad():
         for input_ids, attentions, labels in dev_dataloader:
-            pred = _model.predict(input_ids, attentions)
+            _, out, _ = model(input_ids, attentions)
+            pred = out.argmax(dim=-1)
             for i in range(pred.shape[0]):
                 y_pred.append(pred[i].item())
                 y_gold.append(labels[i].item())
@@ -142,10 +142,17 @@ def train_charlm(args: CharLMTrainingArguments):
                 pbar.update(1)
 
                 if counter % args.save_every == 0 and counter > 0:
+                    del loss
+                    del loss_update
+                    del lm_out
+                    del classifier_out
+                    torch.cuda.empty_cache()
                     best, latest = tracker.for_steps(
                         args.model, args.dev_loader)
                     args.model.train()
                     pbar.set_postfix({"best": best, "latest": latest})
+        
+        torch.cuda.empty_cache()
         tracker.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
         args.model.train()
 
