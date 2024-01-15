@@ -85,7 +85,7 @@ def train_charlm(args: CharLMTrainingArguments):
     classification_criterion = nn.NLLLoss()
     lm_criterion = nn.NLLLoss()
 
-    i = 0
+    counter = 0
     tracker = ProgressTracker(args.checkpoint_prefix, evaluate_fn=evaluate)
     for epoch in range(args.start_epoch, args.n_epochs + 1):
         args.model.train()
@@ -138,10 +138,10 @@ def train_charlm(args: CharLMTrainingArguments):
                 loss.backward()
                 args.optimizer.step()
                 
-                i += 1
+                counter += 1
                 pbar.update(1)
 
-                if i % args.save_every == 0 and i > 0:
+                if counter % args.save_every == 0 and counter > 0:
                     best, latest = tracker.for_steps(
                         args.model, args.dev_loader)
                     args.model.train()
