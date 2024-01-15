@@ -23,8 +23,6 @@ def add_args(parser: ArgumentParser):
     group = parser.add_argument_group("CharLM")
     group.add_argument("--charlm-load-model", type=str, default=None)
     group.add_argument("--charlm-do-train", type=bool, default=False)
-    group.add_argument("--charlm-window-size", type=int, default=5000)
-    group.add_argument("--charlm-context-size", type=int, default=1000)
     group.add_argument("--charlm-emb-size", type=int, default=8)
     group.add_argument("--charlm-hidden-size", type=int, default=128)
     group.add_argument("--charlm-num-layers", type=int, default=1)
@@ -46,10 +44,10 @@ def add_args(parser: ArgumentParser):
 
 
 def evaluate(model, dev_dataloader, f1_only=True):
+    model.eval()
     y_pred = []
     y_gold = []
     _model = model.module if model.module else model
-    model.eval()
     with torch.no_grad():
         for input_ids, attentions, labels in dev_dataloader:
             pred = _model.predict(input_ids, attentions)
@@ -79,87 +77,8 @@ class CharLMTrainingArguments:
     clip: float = None
     checkpoint_prefix: str = "charLM"
     start_epoch: int = 1
-    window_size: int = 5000
-    context_size: int = 1000
 
 
-def _get_windows(input_ids, attentions, window_size=4000, context_size=1000) -> Tuple[torch.Tensor, torch.Tensor, int]:
-    l = input_ids.shape[1]
-    p = 0
-    it = 0
-    while p < l:
-        if it == 0:
-            yield input_ids[:, p:p+window_size], attentions[:, p:p+window_size], 0
-
-        else:
-            start = p - context_size
-            end = p + window_size + context_size
-            yield input_ids[:, start:end], attentions[:, start:end], context_size
-        it += 1
-        p += window_size
-
-
-def _process_windows(args: CharLMTrainingArguments, windows, labels, classification_criterion, lm_criterion):
-    for (input_ids, attentions, context_boundary) in windows:
-
-        # ------------------
-        # Filter no attention
-        # ------------------
-
-        # ------------------
-        # Run model
-        # ------------------
-
-        args.optimizer.zero_grad()
-
-        lm_out, classifier_out, _ = args.model(
-            input_ids, attentions)
-
-        loss = torch.tensor(0, dtype=torch.float32, device=get_device())
-
-        # ------------------
-        # LM loss
-        # ------------------
-        for i in range(input_ids.shape[0]):
-            if labels[i].item() == 0:
-                # only train LM on human texts
-                _out = lm_out[:, context_boundary:]
-                _labels = input_ids[:, context_boundary:]
-                _att = attentions[:, context_boundary:]
-                until = _att[i].cpu().tolist().index(
-                    0) if 0 in _att[i] else input_ids.shape[1]
-                y_pred = _out[i, :until]
-                y_gold = _labels[i, :until]
-                y_pred = y_pred[:-1]
-                y_gold = y_gold[1:]
-                if y_pred.shape[0] == 0:
-                    continue
-                loss_update = lm_criterion(y_pred, y_gold)
-                loss += loss_update
-
-                if torch.isnan(loss):
-                    print("NAN loss")
-
-        # ------------------
-        # Classifier loss
-        # ------------------
-
-        with_attention = []
-        for i in range(attentions.shape[0]):
-            if 1 in attentions[i, context_boundary:]:
-                with_attention.append(i)
-
-        if len(with_attention) != 0:
-            loss_update = classification_criterion(
-                classifier_out[with_attention], labels[with_attention])
-            loss += loss_update
-
-        # ------------------
-        # Backprop
-        # ------------------
-
-        loss.backward()
-        args.optimizer.step()
 
 
 def train_charlm(args: CharLMTrainingArguments):
@@ -173,10 +92,52 @@ def train_charlm(args: CharLMTrainingArguments):
         with tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
             for input_ids, attentions, labels in args.train_loader:
-                windows = _get_windows(
-                    input_ids, attentions, window_size=args.window_size)
-                _process_windows(args, windows, labels,
-                                 classification_criterion, lm_criterion)
+                args.optimizer.zero_grad()
+                
+                lm_out, classifier_out, _ = args.model(
+                    input_ids, attentions)
+                loss = torch.tensor(0, dtype=torch.float32, device=get_device())
+                
+                # ------------------
+                # LM loss
+                # ------------------
+                for i in range(input_ids.shape[0]):
+                    if labels[i].item() == 0:
+                        until = attentions[i].cpu().tolist().index(
+                            0) if 0 in attentions[i] else input_ids.shape[1]
+                        y_pred = lm_out[i, :until]
+                        y_gold = input_ids[i, :until]
+                        y_pred = y_pred[:-1]
+                        y_gold = y_gold[1:]
+                        if y_pred.shape[0] == 0:
+                            continue
+                        loss_update = lm_criterion(y_pred, y_gold)
+                        loss += loss_update
+
+                        if torch.isnan(loss):
+                            print("NAN loss")
+
+                # ------------------
+                # Classifier loss
+                # ------------------
+
+                with_attention = []
+                for i in range(attentions.shape[0]):
+                    if 1 in attentions[i]:
+                        with_attention.append(i)
+
+                if len(with_attention) != 0:
+                    loss_update = classification_criterion(
+                        classifier_out[with_attention], labels[with_attention])
+                    loss += loss_update
+
+                # ------------------
+                # Backprop
+                # ------------------
+
+                loss.backward()
+                args.optimizer.step()
+                
                 i += 1
                 pbar.update(1)
 
@@ -232,7 +193,7 @@ def entry(args):
             TaskA_Dataset(split="train"),
             batch_size=args.charlm_batch_size,
             shuffle=True,
-            collate_fn=collate_fn(tokenizer),
+            collate_fn=collate_fn(tokenizer, max_len=args.charlm_tokenizer_max_len),
             drop_last=True
         )
 
@@ -246,7 +207,6 @@ def entry(args):
             n_epochs=args.charlm_n_epochs,
             start_epoch=start_epoch,
             save_every=args.charlm_save_every,
-            context_size=args.charlm_context_size
         )
 
         train_charlm(training_args)

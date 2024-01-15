@@ -12,8 +12,7 @@ python3 script.py train_charlm \
     --charlm-emb-size 8 \
     --charlm-lr 0.001 \
     --charlm-n-epochs 5 \
-    --charlm-batch-size 8 \
+    --charlm-batch-size 6 \
     --charlm-tokenizer-type uncondensed \
-    --charlm-window-size 6000 \
-    --charlm-context-size 1000 \
-    --charlm-dropout 0.2 \
+    --charlm-dropout 0.1 \
+    --charlm-tokenizer-max-len 15000
