@@ -15,6 +15,6 @@ python3 script.py train_word2vec_classifier \
     --word2vec-classifier-do-train 1 \
     --word2vec-classifier-max-len 15000 \
     --word2vec-classifier-tokenizer-txt-path /Volumes/Aron\'s\ Hard\ Drive/codebase/enwiki_20180420_500d.txt \
-    --word2vec-classifier-tokenizer-save-path ~/codebase/uniwork/cicl/taskA/data/word2vec_500.pkl \
+    --word2vec-classifier-tokenizer-save-path ~/codebase/uniwork/cicl/taskA/data/word2vec_500_unext.pkl \
     --word2vec-classifier-emb-size 500 \
-    --word2vec-classifier-tokenizer-extend 1
+    --word2vec-classifier-tokenizer-extend 0

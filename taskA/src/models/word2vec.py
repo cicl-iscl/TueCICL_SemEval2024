@@ -67,13 +67,11 @@ class Word2VecTokenizer:
     def __init__(self, idx2word, word2idx, vocab, weights) -> None:
         self.idx2word = idx2word
         self.word2idx = word2idx
-        self.vocab = vocab
         self.weights = weights
 
     def save(self, path):
         with open(path, "wb") as f:
-            pickle.dump((self.idx2word, self.word2idx,
-                        self.vocab, self.weights), f)
+            pickle.dump((self.idx2word, self.word2idx, self.weights), f)
 
     def _get_ids(self, tokens):
         _ids = []
@@ -111,20 +109,19 @@ class Word2VecTokenizer:
             spl = text.lower().split()
             for token in spl:
                 if token not in self.word2idx:
-                    self.vocab.append(token)
                     self.weights.append([0.0] * self.emb_size)
                     self.word2idx[token] = len(self.word2idx)
                     self.idx2word[len(self.idx2word)] = token
 
     @classmethod
     def from_txt(cls, path, auto_save=True, emb_size=500):
-        vocab = []
         word2idx = {}
         idx2word = {}
         weights = []
+        print("Loading word2vec from", path)
         with open(path, "r") as f:
             next(f)  #  skip header
-            for i, line in f:
+            for i, line in enumerate(f):
                 if not line:
                     continue
                 try:
@@ -134,7 +131,6 @@ class Word2VecTokenizer:
                     weights.append(vec)
                     word2idx[word] = i
                     idx2word[i] = word
-                    vocab.append(word)
                 except Exception as e:
                     print(e)
                     print(line)
@@ -142,10 +138,9 @@ class Word2VecTokenizer:
         for token in [cls.UNK, cls.PAD, cls.BOS, cls.EOS, cls.WHITESPACE, cls.PUNCTUATION]:
             word2idx[token] = len(word2idx)
             idx2word[len(idx2word)] = token
-            vocab.append(token)
             weights.append([0.0] * emb_size)
 
-        o = cls(idx2word, word2idx, vocab, weights)
+        o = cls(idx2word, word2idx, weights)
         if auto_save:
             o.save(path.replace(".txt", ".pkl"))
         return o
@@ -153,5 +148,5 @@ class Word2VecTokenizer:
     @classmethod
     def from_pkl(cls, path):
         with open(path, "rb") as f:
-            idx2word, word2idx, vocab, weights = pickle.load(f)
-        return cls(idx2word, word2idx, vocab, weights)
+            idx2word, word2idx, weights = pickle.load(f)
+        return cls(idx2word, word2idx, weights)
