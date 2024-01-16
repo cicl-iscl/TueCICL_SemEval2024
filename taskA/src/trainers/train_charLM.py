@@ -41,16 +41,17 @@ def add_args(parser: ArgumentParser):
     group.add_argument("--charlm-tokenizer-max-len", type=int,
                        default=15_000, help="Applied to dev set only")
     group.add_argument("--charlm-dropout", type=float, default=0.0)
+    group.add_argument("--charlm-window-size", type=int, default=5000)
 
 
 def evaluate(model, dev_dataloader, f1_only=True):
     model.eval()
     y_pred = []
     y_gold = []
-    _model = model.module if model.module else model
     with torch.no_grad():
         for input_ids, attentions, labels in dev_dataloader:
-            pred = _model.predict(input_ids, attentions)
+            _, out, _ = model(input_ids, attentions)
+            pred = out.argmax(dim=-1)
             for i in range(pred.shape[0]):
                 y_pred.append(pred[i].item())
                 y_gold.append(labels[i].item())
@@ -77,8 +78,81 @@ class CharLMTrainingArguments:
     clip: float = None
     checkpoint_prefix: str = "charLM"
     start_epoch: int = 1
+    window_size: int = 5000
+
+def _get_windows(input_ids, attentions, window_size=5000):
+    l = input_ids.shape[1]
+    p = 0
+    while p < l:
+        yield input_ids[:, p:p + window_size], attentions[:, p:p + window_size]
+        p += window_size
 
 
+def _process_windows(args: CharLMTrainingArguments, windows, labels, classification_criterion, lm_criterion):
+    lstm_hidden = None
+    for (input_ids, attentions) in windows:
+
+        # ------------------
+        # Filter no attention
+        # ------------------
+
+        # ------------------
+        # Run model
+        # ------------------
+
+        args.optimizer.zero_grad()
+
+        lm_out, classifier_out, lstm_hidden = args.model(
+            input_ids, attentions, lstm_hidden)
+        lstm_hidden = tuple([h.detach() for h in lstm_hidden])
+
+        loss = torch.tensor(0, dtype=torch.float32, device=get_device())
+
+        # ------------------
+        # LM loss
+        # ------------------
+        for i in range(input_ids.shape[0]):
+            if labels[i].item() == 0:
+                # only train LM on human texts
+                until = attentions[i].cpu().tolist().index(
+                    0) if 0 in attentions[i] else input_ids.shape[1]
+                y_pred = lm_out[i, :until]
+                y_gold = input_ids[i, :until]
+                y_pred = y_pred[:-1]
+                y_gold = y_gold[1:]
+                if y_pred.shape[0] == 0:
+                    continue
+                loss_update = lm_criterion(y_pred, y_gold)
+                loss += loss_update
+
+                if torch.isnan(loss):
+                    print("NAN loss")
+
+        # ------------------
+        # Classifier loss
+        # ------------------
+
+        with_attention = []
+        for i in range(attentions.shape[0]):
+            if 1 in attentions[i]:
+                with_attention.append(i)
+
+        if len(with_attention) != 0:
+            loss_update = classification_criterion(
+                classifier_out[with_attention], labels[with_attention])
+            loss += loss_update
+
+        # ------------------
+        # Backprop
+        # ------------------
+
+        loss.backward()
+        args.optimizer.step()
+
+        # with torch.no_grad():
+        #     # prepare for next iteration
+        #     _, _, lstm_hidden = args.model(input_ids, attentions, lstm_hidden)
+        #     lstm_hidden = tuple([h.detach() for h in lstm_hidden])
 
 
 def train_charlm(args: CharLMTrainingArguments):
@@ -92,60 +166,20 @@ def train_charlm(args: CharLMTrainingArguments):
         with tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
             for input_ids, attentions, labels in args.train_loader:
-                args.optimizer.zero_grad()
-                
-                lm_out, classifier_out, _ = args.model(
-                    input_ids, attentions)
-                loss = torch.tensor(0, dtype=torch.float32, device=get_device())
-                
-                # ------------------
-                # LM loss
-                # ------------------
-                for i in range(input_ids.shape[0]):
-                    if labels[i].item() == 0:
-                        until = attentions[i].cpu().tolist().index(
-                            0) if 0 in attentions[i] else input_ids.shape[1]
-                        y_pred = lm_out[i, :until]
-                        y_gold = input_ids[i, :until]
-                        y_pred = y_pred[:-1]
-                        y_gold = y_gold[1:]
-                        if y_pred.shape[0] == 0:
-                            continue
-                        loss_update = lm_criterion(y_pred, y_gold)
-                        loss += loss_update
-
-                        if torch.isnan(loss):
-                            print("NAN loss")
-
-                # ------------------
-                # Classifier loss
-                # ------------------
-
-                with_attention = []
-                for i in range(attentions.shape[0]):
-                    if 1 in attentions[i]:
-                        with_attention.append(i)
-
-                if len(with_attention) != 0:
-                    loss_update = classification_criterion(
-                        classifier_out[with_attention], labels[with_attention])
-                    loss += loss_update
-
-                # ------------------
-                # Backprop
-                # ------------------
-
-                loss.backward()
-                args.optimizer.step()
+                windows = _get_windows(input_ids, attentions, window_size=args.window_size)
+                _process_windows(args, windows, labels, classification_criterion=classification_criterion, lm_criterion=lm_criterion)
                 
                 counter += 1
                 pbar.update(1)
 
                 if counter % args.save_every == 0 and counter > 0:
+                    torch.cuda.empty_cache()
                     best, latest = tracker.for_steps(
                         args.model, args.dev_loader)
                     args.model.train()
                     pbar.set_postfix({"best": best, "latest": latest})
+        
+        torch.cuda.empty_cache()
         tracker.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
         args.model.train()
 
@@ -193,7 +227,7 @@ def entry(args):
             TaskA_Dataset(split="train"),
             batch_size=args.charlm_batch_size,
             shuffle=True,
-            collate_fn=collate_fn(tokenizer, max_len=args.charlm_tokenizer_max_len),
+            collate_fn=collate_fn(tokenizer, max_len=None),
             drop_last=True
         )
 
@@ -207,6 +241,7 @@ def entry(args):
             n_epochs=args.charlm_n_epochs,
             start_epoch=start_epoch,
             save_every=args.charlm_save_every,
+            window_size=args.charlm_window_size
         )
 
         train_charlm(training_args)

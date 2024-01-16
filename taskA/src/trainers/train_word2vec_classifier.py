@@ -30,7 +30,7 @@ def add_args(parser):
     group.add_argument(p("max-len"), type=int, default=15_000)
     group.add_argument(p("load-model"), type=str, default=None)
 
-    group.add_argument(p("emb-size"), type=int, default=None, required=True)
+    group.add_argument(p("emb-size"), type=int, default=500)
     group.add_argument(p("tokenizer-extend"), type=bool, default=True)
     group.add_argument(p("tokenizer-txt-path"), type=str, default=None)
     group.add_argument(p("tokenizer-save-path"), type=str, default=None)
