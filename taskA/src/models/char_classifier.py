@@ -8,12 +8,13 @@ from util.device import get_device
 
 
 class CharClassifier(nn.Module):
-    def __init__(self, vocab_size=None, emb_size=8, hidden_size=1024, num_layers=1,) -> None:
+    def __init__(self, vocab_size=None, emb_size=8, hidden_size=1024, num_layers=1, dropout=0.0) -> None:
         super().__init__()
         self.vocab_size = vocab_size
         self.emb_size = emb_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
+        self.dropout=dropout
 
         self.emb = nn.Embedding(vocab_size, emb_size)
         self.lstm = nn.LSTM(
@@ -21,6 +22,7 @@ class CharClassifier(nn.Module):
             input_size=self.emb_size,
             num_layers=self.num_layers,
             batch_first=True,
+            dropout=dropout
         )
         self.lstm2out = nn.Linear(hidden_size, 2)
 
@@ -53,6 +55,7 @@ class CharClassifier(nn.Module):
             "emb_size": self.emb_size,
             "hidden_size": self.hidden_size,
             "num_layers": self.num_layers,
+            "dropout": self.dropout,
             **extra
         }
         torch.save(save_data, path)
@@ -65,6 +68,7 @@ class CharClassifier(nn.Module):
             emb_size=save_data["emb_size"],
             hidden_size=save_data["hidden_size"],
             num_layers=save_data["num_layers"],
+            dropout=save_data["dropout"]
         )
         model.load_state_dict(save_data["state_dict"])
         return model

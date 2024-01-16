@@ -33,6 +33,7 @@ def add_args(parser: ArgumentParser):
                        default="uncondensed", choices=["condensed", "uncondensed"])
     group.add_argument("--char-class-tokenizer-max-len",
                        type=int, default=15_000)
+    group.add_argument("--char-class-dropout", type=float, default=0.0)
 
 
 def evaluate(model, dev_dataloader, f1_only=True):
@@ -113,6 +114,7 @@ def entry(args):
             emb_size=args.char_class_emb_size,
             hidden_size=args.char_class_hidden_size,
             num_layers=args.char_class_num_layers,
+            dropout=args.char_class_dropout
         )
 
     model.to(get_device())
