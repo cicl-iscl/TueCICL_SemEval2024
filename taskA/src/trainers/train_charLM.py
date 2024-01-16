@@ -173,10 +173,6 @@ def train_charlm(args: CharLMTrainingArguments):
                 pbar.update(1)
 
                 if counter % args.save_every == 0 and counter > 0:
-                    del loss
-                    del loss_update
-                    del lm_out
-                    del classifier_out
                     torch.cuda.empty_cache()
                     best, latest = tracker.for_steps(
                         args.model, args.dev_loader)
