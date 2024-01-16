@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 import torch
 from tqdm import tqdm
+import torch.nn as nn
 from loader.data import TaskA_Dataset, collate_fn
 
 from models.char_classifier import CharClassifier, CharClassifierTokenizer
@@ -39,9 +40,11 @@ def add_args(parser: ArgumentParser):
 def evaluate(model, dev_dataloader, f1_only=True):
     y_pred = []
     y_gold = []
+    model.eval()
     with torch.no_grad():
         for input_ids, _, labels in dev_dataloader:
-            pred = model.predict(input_ids)
+            out, _ = model(input_ids)
+            pred = out.argmax(dim=1)
             for i in range(pred.shape[0]):
                 y_pred.append(pred[i].item())
                 y_gold.append(labels[i].item())
@@ -92,9 +95,11 @@ def train_char_classifier(args: CharClassifierTrainingArguments):
 
                 if i % args.save_every == 0 and i > 0:
                     best, latest = pt.for_steps(args.model, args.dev_loader)
+                    args.model.train()
                     pbar.set_postfix(best=best, latest=latest)
 
         pt.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
+        args.model.train()
 
 
 def entry(args):
@@ -118,6 +123,7 @@ def entry(args):
         )
 
     model.to(get_device())
+    model = nn.DataParallel(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.char_class_lr)
     criterion = torch.nn.NLLLoss()
     start_epoch = args.char_class_start_epoch
