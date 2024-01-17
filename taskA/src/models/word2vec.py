@@ -1,29 +1,38 @@
-from curses.ascii import isspace
 import pickle
 import string
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from util.device import get_device
-
+import re
 
 class Word2VecClassifier(nn.Module):
     def __init__(
         self,
-        pretrained_embeddings,
+        pretrained_embeddings=None,
         hidden_size=128,
         num_layers=1,
-        aggregate_fn="mean",
         dropout=0.0,
+        vocab_size=None,
+        emb_size=None,
     ) -> None:
+        super().__init__()
+        
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.aggregate_fn = aggregate_fn
         self.dropout = dropout
-        self.emb_size = pretrained_embeddings.shape[1]
-        self.vocab_size = pretrained_embeddings.shape[0]
-
-        self.emb = nn.Embedding.from_pretrained(pretrained_embeddings)
+        
+        if pretrained_embeddings is not None:
+            self.vocab_size = pretrained_embeddings.shape[0]
+            self.emb_size = pretrained_embeddings.shape[1]
+            self.emb = nn.Embedding.from_pretrained(pretrained_embeddings)
+        elif vocab_size is not None and emb_size is not None:
+            self.vocab_size = vocab_size
+            self.emb_size = emb_size
+            self.emb = nn.Embedding(vocab_size, emb_size)
+        else:
+            raise ValueError("Either pretrained_embeddings or vocab_size and emb_size must be provided")    
+        
         self.lstm = nn.LSTM(
             self.emb_size,
             hidden_size,
@@ -32,28 +41,52 @@ class Word2VecClassifier(nn.Module):
             dropout=dropout,
         )
         self.lstm2class = nn.Linear(hidden_size, 2)
-        self.lstm2lm = nn.Linear(hidden_size, self.vocab_size)
 
         self.emb.cpu()
         self.lstm.to(get_device())
         self.lstm2class.to(get_device())
-        self.lstm2lm.to(get_device())
 
     def forward(self, x):
-        x = self.emb(x)
-        x.to(get_device())
+        x: torch.Tensor = self.emb(x)
+        x = x.to(get_device())
+        self.lstm.flatten_parameters()
         x, _ = self.lstm(x)
         pred_class = self.lstm2class(x[:, -1, :])
         pred_class = F.log_softmax(pred_class, dim=-1)
-        pred_lm = self.lstm2lm(x)
-        pred_lm = F.log_softmax(pred_lm, dim=-1)
 
-        return pred_class, pred_lm
+        return pred_class
 
     def predict(self, x):
         pred_class, _ = self.forward(x)
         pred_class = pred_class.argmax(dim=1)
         return pred_class
+    
+    def save(self, path, extra={}):
+        torch.save({
+            "model": self.state_dict(),
+            "hidden_size": self.hidden_size,
+            "num_layers": self.num_layers,
+            "dropout": self.dropout,
+            "vocab_size": self.vocab_size,
+            "emb_size": self.emb_size,
+            **extra
+        }, path)
+    
+    def __str__(self) -> str:
+        return f"Word2VecClassifier(emb_size={self.emb_size}, hidden_size={self.hidden_size}, num_layers={self.num_layers}, dropout={self.dropout})"
+
+    @classmethod
+    def from_pretrained(cls, path):
+        data = torch.load(path)
+        model = cls(
+            hidden_size=data["hidden_size"],
+            num_layers=data["num_layers"],
+            dropout=data["dropout"],
+            vocab_size=data["vocab_size"],
+            emb_size=data["emb_size"],
+        )
+        model.load_state_dict(data["model"])
+        return model
 
 
 class Word2VecTokenizer:
@@ -64,28 +97,35 @@ class Word2VecTokenizer:
     WHITESPACE = "<WS>"
     PUNCTUATION = "<PUNCT>"
 
-    def __init__(self, idx2word, word2idx, vocab, weights) -> None:
+    def __init__(self, idx2word, word2idx, weights=None) -> None:
         self.idx2word = idx2word
         self.word2idx = word2idx
         self.weights = weights
 
-    def save(self, path):
-        with open(path, "wb") as f:
-            pickle.dump((self.idx2word, self.word2idx, self.weights), f)
+    def save(self, weights_path=None, vocab_path=None):
+        with open(weights_path, "wb") as f:
+            pickle.dump(self.weights, f)
+        with open(vocab_path, "wb") as f:
+            pickle.dump((self.idx2word, self.word2idx), f)
+            
+    def _is_space(self, token):
+        pat = re.compile(r"\s+")
+        return pat.match(token) is not None
 
     def _get_ids(self, tokens):
         _ids = []
         def idof(token): return self.word2idx.get(
             token, self.word2idx[self.UNK])
         for token in tokens:
-            if string.isspace(token):
+            if self._is_space(token):
                 _ids.append(idof(self.WHITESPACE))
             elif token in string.punctuation:
                 _ids.append(idof(self.PUNCTUATION))
             else:
                 _ids.append(idof(token))
+        return _ids
 
-    def tokenize(self, texts, add_special_tokens=True, max_len=None):
+    def tokenize(self, texts, add_special_tokens=True, max_len=None, device=get_device()):
         tokens = [text.lower().split(" ") for text in texts]
         longest = max([len(x) for x in tokens])
         if max_len is not None:
@@ -96,13 +136,16 @@ class Word2VecTokenizer:
             longest = longest + 2
         attentions = []
         for i, text in enumerate(tokens):
-            attentions[i] = [1] * len(text)
+            attentions.append([1] * len(text))
             if len(text) < longest:
                 attentions[i] = attentions[i] + [0] * (longest - len(text))
                 tokens[i] += [self.PAD] * (longest - len(text))
-        unk_id = self.word2idx[self.UNK]
-        ids = [[self.word2idx.get(x, unk_id) for x in text]]
-        return torch.tensor(ids, dtype=torch.long), torch.tensor(attentions, dtype=torch.long)
+        
+        ids = [self._get_ids(x) for x in tokens]
+        return (
+            torch.tensor(ids, dtype=torch.long, device=device), 
+            torch.tensor(attentions, dtype=torch.long, device=device)
+        )
 
     def extend(self, texts):
         for text in texts:
@@ -114,7 +157,7 @@ class Word2VecTokenizer:
                     self.idx2word[len(self.idx2word)] = token
 
     @classmethod
-    def from_txt(cls, path, auto_save=True, emb_size=500):
+    def from_txt(cls, path, emb_size=500):
         word2idx = {}
         idx2word = {}
         weights = []
@@ -139,14 +182,16 @@ class Word2VecTokenizer:
             word2idx[token] = len(word2idx)
             idx2word[len(idx2word)] = token
             weights.append([0.0] * emb_size)
+        
+        weights = torch.tensor(weights, dtype=torch.float32)
 
         o = cls(idx2word, word2idx, weights)
-        if auto_save:
-            o.save(path.replace(".txt", ".pkl"))
+        
         return o
 
     @classmethod
     def from_pkl(cls, path):
         with open(path, "rb") as f:
-            idx2word, word2idx, weights = pickle.load(f)
-        return cls(idx2word, word2idx, weights)
+            data = pickle.load(f)
+            idx2word, word2idx = data
+        return cls(idx2word, word2idx)

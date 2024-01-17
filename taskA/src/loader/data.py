@@ -27,12 +27,12 @@ class TaskA_Dataset(Dataset):
         return text, label, _id
 
 
-def collate_fn(tokenizer, max_len=None):
+def collate_fn(tokenizer, max_len=None, device=get_device()):
     def collate(batch):
         texts = [text for text, _, _ in batch]
         labels = [label for _, label, _ in batch]
-        input_ids, attentions = tokenizer.tokenize(texts, max_len=max_len)
+        input_ids, attentions = tokenizer.tokenize(texts, max_len=max_len, device=device)
         labels_tensor = torch.tensor(
-            labels, dtype=torch.long, device=get_device())
+            labels, dtype=torch.long, device=device)
         return input_ids, attentions, labels_tensor
     return collate
