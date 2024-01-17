@@ -140,7 +140,8 @@ def entry(args):
         batch_size=args.char_class_batch_size,
         shuffle=True,
         collate_fn=collate_fn(
-            tokenizer, max_len=args.char_class_tokenizer_max_len)
+            tokenizer, max_len=args.char_class_tokenizer_max_len),
+        drop_last=True
     )
 
     if args.char_class_do_train:
@@ -149,7 +150,8 @@ def entry(args):
             batch_size=args.char_class_batch_size,
             shuffle=True,
             collate_fn=collate_fn(
-                tokenizer, max_len=args.char_class_tokenizer_max_len)
+                tokenizer, max_len=args.char_class_tokenizer_max_len),
+            drop_last=True
         )
 
         training_args = CharClassifierTrainingArguments(
