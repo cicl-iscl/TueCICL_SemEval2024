@@ -11,7 +11,7 @@ python3 script.py train_word2vec_classifier \
     --word2vec-classifier-batch-size 6 \
     --word2vec-classifier-n-epochs 10 \
     --word2vec-classifier-start-epoch 1 \
-    --word2vec-classifier-save-every 20 \
+    --word2vec-classifier-save-every 2000 \
     --word2vec-classifier-do-train \
     --word2vec-classifier-max-len 1000 \
     --word2vec-classifier-tokenizer-pkl-path-weights ~/cicl/taskA/data/w2v_500_weights.pkl \
