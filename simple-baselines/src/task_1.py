@@ -26,8 +26,10 @@ def preprocess(df):
 
 # load data
 train_df, test_df = get_data("../../data/subtaskA_train_monolingual.jsonl", "../../data/subtaskA_dev_monolingual.jsonl", 0)
-train_df = preprocess(train_df)
-test_df = preprocess(test_df)
+
+# no preprocessing
+# train_df = preprocess(train_df)
+# test_df = preprocess(test_df)
 
 # shuffle data because it's sorted
 train_df = train_df.sample(frac=1).reset_index(drop=True)

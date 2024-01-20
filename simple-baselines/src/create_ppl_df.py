@@ -64,16 +64,20 @@ def get_ppl_data(dataset, model, tokenizer, device):
 
     def perplexity(logits, batch):
         logprobs = log_softmax(logits, dim=-1)
+        if (len(logprobs.size())) != 3:
+            logprobs = logprobs.unsqueeze(dim=0)
         logprobs = np.array(logprobs)
         ppl_lst = []
+
         for i in range(len(logprobs)):
             input_ids = batch["input_ids"][i].cpu()
             attention_mask = batch["attention_mask"][i].cpu()
             attention_mask = np.array(attention_mask)
             l = len(attention_mask[attention_mask == 1])
             total_prob = 0
+            input_ids = input_ids.squeeze()
             for j in range(l -1):
-                curr_prob = logprobs[i, j, input_ids[j+1]]
+                curr_prob = logprobs[i, j, input_ids[j + 1]]
                 total_prob += curr_prob
             ppl_lst.append(np.exp( - (1 / l) * total_prob))
         return ppl_lst
@@ -97,11 +101,11 @@ def get_ppl_data(dataset, model, tokenizer, device):
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-train_df, test_df = get_data("../../data/subtaskA_train_monolingual.jsonl",
-                             "../../data/subtaskA_dev_monolingual.jsonl", 0)
+train_df, test_df = get_data("data/subtaskA_train_monolingual.jsonl",
+                             "data/subtaskA_dev_monolingual.jsonl", 0)
 
-red_df = pd.concat([train_df.iloc[:10, :], train_df.iloc[-10:, :]])
-red_test_df = pd.concat([test_df.iloc[:10, :], test_df.iloc[-10:, :]])
+# red_df = pd.concat([train_df.iloc[:10, :], train_df.iloc[-10:, :]])
+# red_test_df = pd.concat([test_df.iloc[:10, :], test_df.iloc[-10:, :]]).reset_index(drop=True)
 #
 # red_df = red_df.sample(frac=1).reset_index(drop=True)
 # test_df = test_df.sample(frac=1).reset_index(drop=True)
@@ -109,20 +113,20 @@ red_test_df = pd.concat([test_df.iloc[:10, :], test_df.iloc[-10:, :]])
 model = AutoModelForCausalLM.from_pretrained('gpt2')
 tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
 
-ppl_train = get_ppl_data(red_df, model, tokenizer, device)
+ppl_train = get_ppl_data(train_df.iloc[1:3,:], model, tokenizer, device)
 
 # clf = LogisticRegression()
-# clf.fit(ppl_train, red_df.label)
+# clf.fit(ppl_train, train_df.label)
 
-ppl_test = get_ppl_data(red_test_df, model, tokenizer, device)
+# ppl_test = get_ppl_data(test_df, model, tokenizer, device)
 # pred = clf.predict(ppl_test)
 
-train_df_ppl = red_df
-train_df_ppl["ppl"] = pd.Series([ppl_train])
-test_df_ppl = red_test_df
-test_df_ppl["ppl"] = pd.Series([ppl_train])
-train_df_ppl.to_json("../../data/subtaskA_train_ppl")
-test_df_ppl.to_json("../../data/subtaskA_test_ppl")
+train_df_ppl = train_df
+train_df_ppl["ppl"] = pd.Series(ppl_train)
+test_df_ppl = test_df
+# test_df_ppl["ppl"] = pd.Series(ppl_test)
+train_df_ppl.to_json("data/subtaskA_train_ppl.json")
+test_df_ppl.to_json("data/subtaskA_test_ppl")
 # count = pred[pred == 1]
 # print(len(count))
 #
