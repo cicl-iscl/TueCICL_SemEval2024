@@ -2,7 +2,7 @@ import json
 import torch
 from torch.utils.data import Dataset
 
-from ..util.device import get_device
+from util.device import get_device
 import pandas as pd
 
 
@@ -13,7 +13,7 @@ class TaskC_Data(Dataset):
         self.data = self.load_data()
 
     def load_data(self):
-        f = "data/subtaskC_train.jsonl" if self.split == "train" else "data/subtaskC_dev.jsonl"
+        f = "../data/subtaskC_train.jsonl" if self.split == "train" else "../data/subtaskC_dev.jsonl"
         data = []
 
         with open(f, "r", encoding="utf-8") as f:
@@ -27,7 +27,8 @@ class TaskC_Data(Dataset):
         path = "data/subtaskA_train_monolingual.jsonl"
         with open(path, "r") as f:
             for line in f:
-                if not line: continue   
+                if not line:
+                    continue
                 parsed = json.loads(line)
                 obj = {
                     "text": parsed["text"],
