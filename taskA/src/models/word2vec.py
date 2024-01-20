@@ -31,7 +31,8 @@ class Word2VecClassifier(nn.Module):
             self.emb_size = emb_size
             self.emb = nn.Embedding(vocab_size, emb_size)
         else:
-            raise ValueError("Either pretrained_embeddings or vocab_size and emb_size must be provided")    
+            raise ValueError("Either pretrained_embeddings or vocab_size and emb_size must be provided")   
+         
         
         self.lstm = nn.LSTM(
             self.emb_size,
@@ -73,7 +74,7 @@ class Word2VecClassifier(nn.Module):
         }, path)
     
     def __str__(self) -> str:
-        return f"Word2VecClassifier(emb_size={self.emb_size}, hidden_size={self.hidden_size}, num_layers={self.num_layers}, dropout={self.dropout})"
+        return f"Word2VecClassifier(vocab_size={self.vocab_size}, emb_size={self.emb_size}, hidden_size={self.hidden_size}, num_layers={self.num_layers}, dropout={self.dropout})"
 
     @classmethod
     def from_pretrained(cls, path):
@@ -94,6 +95,7 @@ class Word2VecTokenizer:
     PAD = "<PAD>"
     BOS = "<BOS>"
     EOS = "<EOS>"
+    NUMBER = "<NUM>"
     WHITESPACE = "<WS>"
     PUNCTUATION = "<PUNCT>"
 
@@ -108,8 +110,18 @@ class Word2VecTokenizer:
         with open(vocab_path, "wb") as f:
             pickle.dump((self.idx2word, self.word2idx), f)
             
+    def _clean(self, text: str):
+        text = text.lower()
+        # replace "{punct}" with " {punct} "
+        text = re.sub(r"([^\w\s])", r" \1 ", text)
+        return text
+            
     def _is_space(self, token):
         pat = re.compile(r"\s+")
+        return pat.match(token) is not None
+    
+    def _is_number(self, token):
+        pat = re.compile(r"\d+")
         return pat.match(token) is not None
 
     def _get_ids(self, tokens):
@@ -121,12 +133,14 @@ class Word2VecTokenizer:
                 _ids.append(idof(self.WHITESPACE))
             elif token in string.punctuation:
                 _ids.append(idof(self.PUNCTUATION))
+            elif self._is_number(token):
+                _ids.append(idof(self.NUMBER))
             else:
                 _ids.append(idof(token))
         return _ids
 
-    def tokenize(self, texts, add_special_tokens=True, max_len=None, device=get_device()):
-        tokens = [text.lower().split(" ") for text in texts]
+    def tokenize(self, texts, add_special_tokens=False, max_len=None, device=get_device()):
+        tokens = [self._clean(text).split(" ") for text in texts]
         longest = max([len(x) for x in tokens])
         if max_len is not None:
             longest = min(longest, max_len)
@@ -147,14 +161,40 @@ class Word2VecTokenizer:
             torch.tensor(attentions, dtype=torch.long, device=device)
         )
 
-    def extend(self, texts):
+    def extend(self, texts, emb_size=500):
         for text in texts:
-            spl = text.lower().split()
+            spl = self._clean(text).split()
             for token in spl:
                 if token not in self.word2idx:
-                    self.weights.append([0.0] * self.emb_size)
                     self.word2idx[token] = len(self.word2idx)
                     self.idx2word[len(self.idx2word)] = token
+                    w = torch.tensor([0.0] * emb_size, dtype=torch.float32)
+                    self.weights = torch.cat([self.weights, w.unsqueeze(0)])
+                    
+    def purge(self):
+        del_ids = set()
+        for word in self.word2idx:
+            idx = self.word2idx[word]
+            if not word or len(word.split()) > 1 or self._is_number(word) or self._is_space(word):
+                del_ids.add(idx)
+        
+        word2idx = {}
+        idx2word = {}
+        weights = []
+        
+        i = 0
+        for word in self.word2idx:
+            idx = self.word2idx[word]
+            if idx not in del_ids:
+                w = self.weights[idx].cpu().tolist()
+                word2idx[word] = i
+                idx2word[i] = word
+                weights.append(w)
+                i += 1
+        
+        self.word2idx = word2idx
+        self.idx2word = idx2word
+        self.weights = torch.tensor(weights, dtype=torch.float32)
 
     @classmethod
     def from_txt(cls, path, emb_size=500):
@@ -178,7 +218,7 @@ class Word2VecTokenizer:
                     print(e)
                     print(line)
 
-        for token in [cls.UNK, cls.PAD, cls.BOS, cls.EOS, cls.WHITESPACE, cls.PUNCTUATION]:
+        for token in [cls.UNK, cls.PAD, cls.BOS, cls.EOS, cls.WHITESPACE, cls.PUNCTUATION, cls.NUMBER]:
             word2idx[token] = len(word2idx)
             idx2word[len(idx2word)] = token
             weights.append([0.0] * emb_size)

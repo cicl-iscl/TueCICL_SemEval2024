@@ -82,8 +82,8 @@ def train_classifier(args: TrainingArgumets):
     i = 0
     args.model.train()
     
-    with tqdm(total=len(args.train_loader) * args.n_epochs) as pbar:
-        for epoch in range(args.start_epoch, args.n_epochs + 1):
+    for epoch in range(args.start_epoch, args.n_epochs + 1):
+        with tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
             for input_ids, attentions, labels in args.train_loader:
                 labels: torch.Tensor = labels.to(get_device())
@@ -121,9 +121,11 @@ def entry(args: Namespace):
     else:
         tokenizer = Word2VecTokenizer.from_txt(
             args.word2vec_classifier_tokenizer_txt_path, emb_size=args.word2vec_classifier_emb_size)
+        tokenizer.purge()
 
         if args.word2vec_classifier_tokenizer_extend:
-            tokenizer.extend((i[0] for i in ds))
+            tokenizer.extend((i[0] for i in ds), emb_size=args.word2vec_classifier_emb_size)
+            tokenizer.purge()
 
         if args.word2vec_classifier_tokenizer_save_path_vocab and args.word2vec_classifier_tokenizer_save_path_weights:
             tokenizer.save(
@@ -135,8 +137,8 @@ def entry(args: Namespace):
         model = Word2VecClassifier.from_pretrained(
             args.word2vec_classifier_load_model)
     else:
-        weights = torch.tensor(tokenizer.weights, dtype=torch.float32) if tokenizer.weights else None
-        if not weights:
+        weights = torch.tensor(tokenizer.weights, dtype=torch.float32) if tokenizer.weights is not None else None
+        if weights is None:
             with open(args.word2vec_classifier_tokenizer_pkl_path_weights, "rb") as f:
                 weights = pickle.load(f)
                 weights = torch.tensor(weights, dtype=torch.float32)
