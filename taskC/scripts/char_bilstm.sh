@@ -8,7 +8,7 @@ python3 script.py train_char_bilstm \
     --char-bilstm-tokenizer-max-len 15000 \
     --char-bilstm-save-every 1000 \
     --char-bilstm-epochs-extended 3 \
-    --char-bilstm-epochs-pure 2 \
+    --char-bilstm-epochs-pure 5 \
     --char-bilstm-hidden-size 128 \
     --char-bilstm-emb-size 16 \
     --char-bilstm-num-layers 2 \
