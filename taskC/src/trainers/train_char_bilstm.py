@@ -101,7 +101,8 @@ def train(args: TrainingArguments):
                 i += 1
                 pbar.update(1)
                 if i % args.save_every == 0 and i != 0:
-                    pt.for_steps(args.model, args.dev_loader)
+                    best, latest = pt.for_steps(args.model, args.dev_loader)
+                    pbar.set_postfix(best=best, latest=latest)
                     args.model.train()
         pt.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
 
@@ -113,7 +114,8 @@ def train(args: TrainingArguments):
                 i += 1
                 pbar.update(1)
                 if i % args.save_every == 0 and i != 0:
-                    pt.for_steps(args.model, args.dev_loader)
+                    best, latest = pt.for_steps(args.model, args.dev_loader)
+                    pbar.set_postfix(best=best, latest=latest)
                     args.model.train()
         _e = epoch + args.epochs_extended
         pt.for_epoch(args.model, args.optimizer, _e, args.dev_loader)
