@@ -38,17 +38,18 @@ def evaluate(model: ChariBiLSTM, dev_loader):
         if 1 in l:
             _i = l.index(1)
         else:
-            _i = 0
+            _i = len(l) - 1
         return words[_i].item()
 
     for ids, labels, words, _ in dev_loader:
-        out = model(ids)
-        preds = torch.argmax(out, dim=-1)
-        for i in range(len(preds)):
-            true_label = _true_label(labels[i], words[i])
-            print(true_label)
-            true_prediction = _true_label(preds[i], words[i])
-            distances.append(abs(true_label - true_prediction))
+        ids = ids.to(get_device())
+        with torch.no_grad():
+            out = model(ids)
+            preds = torch.argmax(out, dim=-1)
+            for i in range(len(preds)):
+                true_label = _true_label(labels[i], words[i])
+                true_prediction = _true_label(preds[i], words[i])
+                distances.append(abs(true_label - true_prediction))
 
     return sum(distances) / len(distances)
 
