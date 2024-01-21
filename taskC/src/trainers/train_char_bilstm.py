@@ -105,6 +105,7 @@ def train(args: TrainingArguments):
                     pbar.set_postfix(best=best, latest=latest)
                     args.model.train()
         pt.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
+        args.model.train()
 
     for epoch in range(args.epochs_pure):
         with tqdm(total=len(args.train_loader_pure)) as pbar:
@@ -119,6 +120,7 @@ def train(args: TrainingArguments):
                     args.model.train()
         _e = epoch + args.epochs_extended
         pt.for_epoch(args.model, args.optimizer, _e, args.dev_loader)
+        args.model.train()
 
 
 def entry(args: Namespace):
