@@ -33,7 +33,9 @@ class ChariBiLSTM(nn.Module):
     def forward(self, input_ids):
         embedded = self.emb(input_ids)
         lstm_out, _ = self.lstm(embedded)
-        return lstm_out
+        out = self.lstm2out(lstm_out)
+        out = F.log_softmax(out, dim=-1)
+        return out
 
     def predict(self, input_ids):
         out, _ = self(input_ids)

@@ -20,7 +20,8 @@ def add_args(parser):
     group.add_argument(p("epochs-extended"), type=int, default=10)
     group.add_argument(p("epochs-pure"), type=int, default=10)
     group.add_argument(p("lr"), type=float, default=1e-3)
-    group.add_argument(p("save-every"), type=int, default=1000)
+    group.add_argument(p("save-every-extended"), type=int, default=1000)
+    group.add_argument(p("save-every-pure"), type=int, default=1000)
     group.add_argument(p("hidden-size"), type=int, default=2)
     group.add_argument(p("emb-size"), type=int, default=8)
     group.add_argument(p("num-layers"), type=int, default=2)
@@ -61,7 +62,8 @@ class TrainingArguments:
     epochs_extended: int = None
     epochs_pure: int = None
     optimizer: torch.optim.Optimizer = None
-    save_every: int = None
+    save_every_extended: int = None
+    save_every_pure: int = None
     train_loader_pure: DataLoader = None
     train_loader_extended: DataLoader = None
     dev_loader: DataLoader = None
@@ -87,22 +89,27 @@ def perform_training_step(args, batch):
 
     loss.backward()
     args.optimizer.step()
+    return loss.item()
 
 
 def train(args: TrainingArguments):
     i = 0
     pt = ProgressTracker(args.checkpoint_prefix, evaluate_fn=evaluate)
     args.model.train()
+    losses = []
     for epoch in range(args.epochs_extended):
         with tqdm(total=len(args.train_loader_extended)) as pbar:
             pbar.set_description(f"Extended epoch {epoch}")
             for batch in args.train_loader_extended:
-                perform_training_step(args, batch)
+                loss = perform_training_step(args, batch)
                 i += 1
                 pbar.update(1)
-                if i % args.save_every == 0 and i != 0:
+                losses.append(loss)
+                if i % args.save_every_extended == 0 and i != 0:
+                    l = sum(losses) / len(losses)
+                    losses = []
                     best, latest = pt.for_steps(args.model, args.dev_loader)
-                    pbar.set_postfix(best=best, latest=latest)
+                    pbar.set_postfix(best=best, latest=latest, loss=l)
                     args.model.train()
         pt.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
         args.model.train()
@@ -111,11 +118,13 @@ def train(args: TrainingArguments):
         with tqdm(total=len(args.train_loader_pure)) as pbar:
             pbar.set_description(f"Pure epoch {epoch}")
             for batch in args.train_loader_pure:
-                perform_training_step(args, batch)
+                loss = perform_training_step(args, batch)
                 i += 1
                 pbar.update(1)
-                if i % args.save_every == 0 and i != 0:
-                    best, latest = pt.for_steps(args.model, args.dev_loader)
+                if i % args.save_every_pure == 0 and i != 0:
+                    l = sum(losses) / len(losses)
+                    losses = []
+                    best, latest = pt.for_steps(args.model, args.dev_loader, loss=l)
                     pbar.set_postfix(best=best, latest=latest)
                     args.model.train()
         _e = epoch + args.epochs_extended
@@ -172,7 +181,8 @@ def entry(args: Namespace):
         epochs_extended=arg("epochs-extended"),
         epochs_pure=arg("epochs-pure"),
         optimizer=optimizer,
-        save_every=arg("save-every"),
+        save_every_extended=arg("save-every-extended"),
+        save_every_pure=arg("save-every-pure"),
         train_loader_extended=train_dl_ext,
         train_loader_pure=train_dl_pure,
         dev_loader=dev_dl,
