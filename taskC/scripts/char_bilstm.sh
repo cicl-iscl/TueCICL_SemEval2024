@@ -4,7 +4,7 @@ cd src
 
 python3 script.py train_char_bilstm \
     --char-bilstm-tokenizer-path ~/cicl/taskC/data/charlm_vocab_uncondensed.pkl \
-    --char-bilstm-checkpoint-prefix char-bilstm-test \
+    --char-bilstm-checkpoint-prefix char-bilstm-128-2 \
     --char-bilstm-tokenizer-max-len 15000 \
     --char-bilstm-save-every 1000 \
     --char-bilstm-epochs-extended 3 \
