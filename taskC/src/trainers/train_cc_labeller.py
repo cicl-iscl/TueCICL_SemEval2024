@@ -1,6 +1,7 @@
 from argparse import Namespace
 from dataclasses import dataclass
 
+
 import torch
 from tqdm import tqdm
 from loader.data import TaskC_Data
@@ -35,17 +36,18 @@ def evaluate(model: CCModel, dev_loader):
         if 1 in l:
             _i = l.index(1)
         else:
-            _i = 0
+            _i = len(l) - 1
         return words[_i].item()
 
     for ids, labels, words, _ in dev_loader:
-        out = model(ids)
-        preds = torch.argmax(out, dim=-1)
-        for i in range(len(preds)):
-            true_label = _true_label(labels[i], words[i])
-            print(true_label)
-            true_prediction = _true_label(preds[i], words[i])
-            distances.append(abs(true_label - true_prediction))
+        ids = ids.to(get_device())
+        with torch.no_grad():
+            out = model(ids)
+            preds = torch.argmax(out, dim=-1)
+            for i in range(len(preds)):
+                true_label = _true_label(labels[i], words[i])
+                true_prediction = _true_label(preds[i], words[i])
+                distances.append(abs(true_label - true_prediction))
 
     return sum(distances) / len(distances)
 
@@ -67,18 +69,26 @@ class TrainingArguments:
 def train(args: TrainingArguments):
     i = 0
     pt = ProgressTracker(args.checkpoint_prefix, evaluate_fn=evaluate)
+    args.model.train()
 
     for epoch in range(args.epochs):
         with tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
-            for ids, labels, _, _ in args.train_loader:
+            for ids, labels, _, attentions in args.train_loader:
                 ids = ids.to(get_device())
                 labels = labels.to(get_device())
                 args.optimizer.zero_grad()
-                out = args.model(ids)  # (batch_size, seq_len, 2)
-                out = out.reshape(-1, 2)  # (batch_size * seq_len, 2)
-                labels = labels.reshape(-1)  # (batch_size * seq_len)
-                loss = args.criterion(out, labels)
+                
+                loss = torch.tensor(0.0, device=get_device())
+                out = args.model(ids)
+                
+                for j in range(len(ids)):
+                    a = attentions[j].cpu().tolist()
+                    attention_bound = a.index(0) if 0 in a else len(a)
+                    local_out = out[j][:attention_bound]
+                    local_labels = labels[j][:attention_bound]
+                    loss += args.criterion(local_out, local_labels)
+                    
                 loss.backward()
                 args.optimizer.step()
                 pbar.update(1)
@@ -86,12 +96,14 @@ def train(args: TrainingArguments):
 
                 if i % args.save_every == 0 and i != 0:
                     best, metric = pt.for_steps(args.model, args.dev_loader)
+                    args.model.train()
                     pbar.set_postfix({
                         "loss": loss.item(),
                         "latest": metric,
                         "best": best
                     })
         pt.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
+        args.model.train()
 
 
 def entry(args: Namespace):

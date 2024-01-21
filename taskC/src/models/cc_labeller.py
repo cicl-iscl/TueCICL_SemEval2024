@@ -29,6 +29,9 @@ class CharClassifier(nn.Module):
         self.emb.to(get_device())
         self.lstm.to(get_device())
         self.lstm2out.to(get_device())
+        
+    def __str__(self):
+        return f"CharClassifier<vocab={self.vocab_size}, emb={self.emb_size}, h={self.hidden_size}, l={self.num_layers}>"
 
     def forward(self, input_ids, lstm_hidden=None):
         if lstm_hidden is None:
@@ -91,7 +94,9 @@ class CCModel (nn.Module):
         self.cc2out.to(get_device())
 
     def __str__(self):
-        return f"CCModel<vocab={self.cc.vocab_size}, emb={self.cc.emb_size}, h={self.cc.hidden_size}, l={self.cc.num_layers}>"
+        l1 = self.cc.__str__()
+        l2 = f"CCModel<vocab={self.cc.vocab_size}, emb={self.cc.emb_size}, h={self.cc.hidden_size}, l={self.cc.num_layers}>"
+        return f"{l1}\n{l2}"
 
     def forward(self, x):
         out, _ = self.cc(x)
