@@ -37,6 +37,7 @@ class ChariBiLSTM(nn.Module):
 
     def predict(self, input_ids):
         out, _ = self(input_ids)
+        out = self.lstm2out(out)
         return out.argmax(dim=1)
 
     def save(self, path, extra={}):
