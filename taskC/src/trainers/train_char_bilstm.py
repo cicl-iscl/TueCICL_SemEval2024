@@ -27,6 +27,7 @@ def add_args(parser):
     group.add_argument(p("num-layers"), type=int, default=2)
     group.add_argument(p("dropout"), type=float, default=0.2)
     group.add_argument(p("checkpoint-prefix"), type=str, default="char_bilstm")
+    group.add_argument(p("load-model"), type=str, default="char_bilstm")
 
 
 def evaluate(model: ChariBiLSTM, dev_loader):
@@ -164,13 +165,16 @@ def entry(args: Namespace):
         collate_fn=CharBiLSTMTokenizer.collate_fn(tokenizer)
     )
 
-    model = ChariBiLSTM(
-        emb_size=arg("emb-size"),
-        hidden_size=arg("hidden-size"),
-        num_layers=arg("num-layers"),
-        dropout=arg("dropout"),
-        vocab_size=len(tokenizer.idx2word)
-    )
+    if arg("load-model") is not None:
+        model = ChariBiLSTM.from_pretrained(arg("load-model"))
+    else:
+        model = ChariBiLSTM(
+            emb_size=arg("emb-size"),
+            hidden_size=arg("hidden-size"),
+            num_layers=arg("num-layers"),
+            dropout=arg("dropout"),
+            vocab_size=len(tokenizer.idx2word)
+        )
     print(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
