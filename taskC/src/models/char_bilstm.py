@@ -124,6 +124,8 @@ class CharBiLSTMTokenizer:
             spl = text.split(" ")
             for idx, word in enumerate(spl):
                 chars = [c for c in word]
+                if len(chars) == 0:
+                    chars = [" "]
                 for char in chars:
                     _id.append(self.word2idx.get(
                         self.map_char(char), self.word2idx[self.UNK]))
@@ -156,9 +158,9 @@ class CharBiLSTMTokenizer:
     def collate_fn(tokenizer):
         def collate_batch(batch):
             texts = [x[0] for x in batch]
-            labels = [x[1] for x in batch]
+            _labels = [x[1] for x in batch]
             input_ids, labels, words, attentions = tokenizer.tokenize(
-                texts, labels)
+                texts, _labels)
 
             return input_ids, labels, words, attentions
 
