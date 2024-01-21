@@ -85,7 +85,13 @@ class CharBiLSTMTokenizer:
         self.EOS = "<EOS>"
         self.PAD = "<PAD>"
 
-    def map_char(self, char):
+    def map_char(self, char: str):
+        if char.isspace():
+            return self.WHITESPACE
+        if char.isdigit():
+            return self.DIGIT
+        if char in [".", ",", "!", "?", ";", ":", "-", "(", ")", "\"", "'"]:
+            return self.PUNCTUATION
         return char
 
     def pad(self, ids, l):
@@ -121,7 +127,7 @@ class CharBiLSTMTokenizer:
             _label = []
             _word = []
             boundary = labels[text_idx]
-            spl = text.split(" ")
+            spl = text.lower().split(" ")
             for idx, word in enumerate(spl):
                 chars = [c for c in word]
                 if len(chars) == 0:
