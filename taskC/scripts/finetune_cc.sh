@@ -1,5 +1,5 @@
 cd ..
-# source env/bin/activate
+source env/bin/activate
 cd src
 
 python3 script.py finetune_cc \

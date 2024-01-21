@@ -24,7 +24,7 @@ class TaskC_Data(Dataset):
         return data
 
     def import_task_A(self):
-        path = "data/subtaskA_train_monolingual.jsonl"
+        path = "../data/subtaskA_train_monolingual.jsonl"
         with open(path, "r") as f:
             for line in f:
                 if not line:
