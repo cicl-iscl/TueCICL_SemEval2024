@@ -34,6 +34,7 @@ def add_args(parser):
 
 
 def evaluate(_model, dev_loader):
+    _model.eval()
     model = _model.module
     model.eval()
     distances = []
@@ -192,7 +193,7 @@ def entry(args: Namespace):
         dev_ds,
         batch_size=arg("batch-size"),
         shuffle=False,
-        collate_fn=Word2VecTokenizer.collate_fn(tokenizer)
+        collate_fn=Word2VecTokenizer.collate_fn(tokenizer, check_label_mismatch=True),
     )
 
     training_arguments = TrainingArguments(
