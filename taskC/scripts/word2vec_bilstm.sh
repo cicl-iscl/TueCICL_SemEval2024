@@ -17,3 +17,4 @@ python3 script.py train_word2vec_bilstm \
     --word2vec-bilstm-dropout 0.2 \
     --word2vec-bilstm-batch-size 6 \
     --word2vec-bilstm-train \
+    --word2vec-bilstm-prefer-cuda-device 1 \

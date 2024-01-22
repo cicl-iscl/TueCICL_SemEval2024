@@ -153,6 +153,8 @@ def entry(args: Namespace):
     
     if arg("prefer-cuda-device") is not None:
         set_preferred_device(f"cuda:{arg('prefer-cuda-device')}")
+        device = get_device()
+        print(f"Using device {device}")
 
     weights = None
     if arg("tokenizer-vocab"):
