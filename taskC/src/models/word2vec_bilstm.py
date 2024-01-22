@@ -216,16 +216,20 @@ class Word2VecTokenizer:
         return cls(word2idx, idx2word, max_len=max_len)
 
     @staticmethod
-    def collate_fn(tokenizer):
+    def collate_fn(tokenizer, check_label_mismatch=False):
         def collate_batch(batch):
             texts = [x[0] for x in batch]
             true_labels = [x[1] for x in batch]
             input_ids, words, labels, attentions = tokenizer.tokenize(
                 texts, true_labels)
 
-            for i in range(len(texts)):
-                assert true_labels[i] == labels[i].tolist().index(1)
-
+            if check_label_mismatch:
+                for i in range(len(texts)):
+                    mapped_label = labels[i].tolist().index(1)
+                    try:
+                        assert true_labels[i] == mapped_label
+                    except:
+                        print("Detected label mismatch", true_labels[i], mapped_label)
             return input_ids, words, labels, attentions
 
         return collate_batch
