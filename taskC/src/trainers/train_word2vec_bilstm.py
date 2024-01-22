@@ -1,5 +1,6 @@
 from argparse import Namespace
 from dataclasses import dataclass
+from threading import local
 
 import torch
 from tqdm import tqdm
@@ -16,7 +17,9 @@ def add_args(parser):
     def p(cmd): return f"--word2vec-bilstm-{cmd}"
     group.add_argument(p("tokenizer-path"), type=str, default=None)
     group.add_argument(p("tokenizer-vocab"), type=str, default=None)
+    group.add_argument(p("tokenizer-weights"), type=str, default=None)
     group.add_argument(p("save-vocab"), type=str, default=None)
+    group.add_argument(p("save-weights"), type=str, default=None)
     group.add_argument(p("emb-size"), type=int, default=500)
     group.add_argument(p("tokenizer-max-len"), type=int, default=10000)
     group.add_argument(p("batch-size"), type=int, default=8)
@@ -30,12 +33,16 @@ def add_args(parser):
     group.add_argument(p("num-layers"), type=int, default=2)
     group.add_argument(p("dropout"), type=float, default=0.2)
     group.add_argument(p("checkpoint-prefix"), type=str, default="char_bilstm")
-    group.add_argument(p("load-model"), type=str, default="char_bilstm")
+    group.add_argument(p("load-model"), type=str, default=None)
+    group.add_argument(p("use-parallel"), action="store_true", default=False)
 
 
 def evaluate(_model, dev_loader):
     _model.eval()
-    model = _model.module
+    if hasattr(_model, "module"):
+        model = _model.module
+    else:
+        model = _model
     model.eval()
     distances = []
 
@@ -49,7 +56,6 @@ def evaluate(_model, dev_loader):
         return words[_i].item()
 
     for ids, labels, words, _ in dev_loader:
-        ids = ids.to(get_device())
         with torch.no_grad():
             out = model(ids)
             preds = torch.argmax(out, dim=-1)
@@ -79,7 +85,6 @@ class TrainingArguments:
 
 def perform_training_step(args, batch):
     ids, labels, _, attentions = batch
-    ids = ids.to(get_device())
     labels = labels.to(get_device())
     args.optimizer.zero_grad()
 
@@ -147,10 +152,16 @@ def entry(args: Namespace):
     weights = None
     if arg("tokenizer-vocab"):
         tokenizer = Word2VecTokenizer.from_pretrained(arg("tokenizer-vocab"))
+        if arg("load-model") is None and arg("tokenizer-weights"):
+            weights = torch.load(arg("tokenizer-weights"))
+        elif arg("load-model") is None and arg("tokenizer-weights") is None:
+            raise ValueError("No pretrained weights provided")
     elif arg("tokenizer-path"):
-        tokenizer, weights = Word2VecTokenizer.from_txt(arg("tokenizer-path"))
+        tokenizer, weights = Word2VecTokenizer.from_txt(arg("tokenizer-path"), emb_size=arg("emb-size"))
         if arg("save-vocab"):
             tokenizer.save(arg("save-vocab"))
+        if arg("save-weights"):
+            torch.save(weights, arg("save-weights"))
     else:
         raise ValueError(
             "Either tokenizer-path or tokenizer-vocab must be provided")
@@ -167,7 +178,8 @@ def entry(args: Namespace):
             dropout=arg("dropout"),
         )
     print(model)
-    model = torch.nn.DataParallel(model)
+    if arg("use-parallel"):
+        model = torch.nn.DataParallel(model)
     optimizer = torch.optim.Adam(model.parameters(), lr=arg("lr"))
 
     train_ds_ext = TaskC_Data(split="train")

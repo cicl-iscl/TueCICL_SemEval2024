@@ -15,7 +15,7 @@ class ProgressTracker:
         except:
             pass
     
-    def save(model, path, extra):
+    def _save(self, model, path, extra):
         _model = model.module if hasattr(model, "module") else model
         _model.save(path, extra)
 
