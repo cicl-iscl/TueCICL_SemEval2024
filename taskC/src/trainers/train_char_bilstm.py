@@ -122,6 +122,7 @@ def train(args: TrainingArguments):
                 loss = perform_training_step(args, batch)
                 i += 1
                 pbar.update(1)
+                losses.append(loss)
                 if i % args.save_every_pure == 0 and i != 0:
                     l = sum(losses) / len(losses)
                     losses = []
