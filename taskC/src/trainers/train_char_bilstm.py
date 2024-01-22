@@ -125,8 +125,8 @@ def train(args: TrainingArguments):
                 if i % args.save_every_pure == 0 and i != 0:
                     l = sum(losses) / len(losses)
                     losses = []
-                    best, latest = pt.for_steps(args.model, args.dev_loader, loss=l)
-                    pbar.set_postfix(best=best, latest=latest)
+                    best, latest = pt.for_steps(args.model, args.dev_loader)
+                    pbar.set_postfix(best=best, latest=latest, loss=l)
                     args.model.train()
         _e = epoch + args.epochs_extended
         pt.for_epoch(args.model, args.optimizer, _e, args.dev_loader)
