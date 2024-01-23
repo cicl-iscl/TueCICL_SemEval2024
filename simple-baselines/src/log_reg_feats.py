@@ -4,6 +4,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import numpy as np
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import f1_score
+from tqdm import tqdm
 
 
 class Model(nn.Module):
@@ -16,22 +18,28 @@ class Model(nn.Module):
         return y_pred
 
 
+
+
 class TaskA_Dataset(torch.utils.data.Dataset):
     def __init__(self, split="train") -> None:
         if split == "train":
             self.data = pd.read_json("../../data/subtaskA_spacy_feats.json")
-            self.data.drop(["passed_quality_check", "oov_ratio"], inplace=True, axis=1)
-            print(self.data.isnull().values.any())
+            self.data = self.data.sample(frac=1).reset_index(drop=True)
+            self.data.drop(["passed_quality_check", "oov_ratio", "n_characters", "n_sentences"], inplace=True, axis=1)
             self.data.dropna(inplace=True)
-            print(self.data.isnull().values.any())
-            self.feats = self.data.drop(["label", "id", "text"], axis=1).values
-            sc = StandardScaler()
-            X_train = sc.fit_transform(self.feats)
-            X_train = torch.from_numpy(X_train.astype(np.float32))
+            self.feats = np.array(self.data.drop(["label", "id", "text"], axis=1).values)
+            X_train = self.feature_scale(self.feats, True)
+            X_train = torch.from_numpy(X_train.astype(np.float64))
             self.feats = X_train
         else:
-            self.data = pd.read_json("../../data/subtaskA_dev_monolingual.jsonl")
-
+            self.data = pd.read_json("../../data/subtaskA_test_spacy_feats.json")
+            self.data = self.data.sample(frac=1).reset_index(drop=True)
+            self.data.drop(["passed_quality_check", "oov_ratio", "n_characters", "n_sentences"], inplace=True, axis=1)
+            self.data.dropna(inplace=True)
+            self.feats = np.array(self.data.drop(["label", "id", "text"], axis=1).values)
+            X_test = self.feature_scale(self.feats, False)
+            X_test = torch.from_numpy(X_test.astype(np.float64))
+            self.feats = X_test
     def __len__(self):
         return len(self.data)
 
@@ -40,46 +48,58 @@ class TaskA_Dataset(torch.utils.data.Dataset):
         label, id = item["label"], item["id"]
         return self.feats[index], label, id
 
-def collate_fn(data):
-    feats = [data[i][0] for i in range(len(data))]
-    label = [data[i][1] for i in range(len(data))]
-    id = [data[i][2] for i in range(len(data))]
-    return torch.tensor(np.array(feats, dtype=np.float32)), torch.tensor(np.array(label, dtype=np.float32)), torch.tensor(np.array(id, dtype=np.float32))
+    def feature_scale(self, x, train):
+        if train:
+            means = np.mean(x, axis=0)
+            sd = np.std(x, axis=0)
+            self.means = means
+            self.sd = sd
+        else:
+            means = train_set.means
+            sd = train_set.sd
+        means = np.tile(means, (np.shape(x)[0], 1))
+        sd = np.tile(sd, (np.shape(x)[0], 1))
+        return (x - means) / sd
 
-
-log_regr = Model(68, 1)
+log_regr = Model(66, 1)
+log_regr.double()
 # defining the optimizer
-optimizer = torch.optim.SGD(log_regr.parameters(), lr=0.001)
+optimizer = torch.optim.SGD(log_regr.parameters(), lr=0.005)
 # defining Cross-Entropy loss
 criterion = torch.nn.BCELoss()
 
-train_df = pd.read_json("../../data/subtaskA_spacy_feats.json")
+train_set = TaskA_Dataset("train")
+test_set = TaskA_Dataset("test")
+X_train = train_set.feats
+Y_train = torch.from_numpy(train_set.data.label.values.astype(np.float64))
+X_test = test_set.feats
+Y_test = torch.from_numpy(test_set.data.label.values.astype(np.float64))
 
-# test_df = pd.read_json("../../data")
-trainset = TaskA_Dataset("train")
-# load train and test data samples into dataloader
-batach_size = 32
-train_loader = DataLoader(dataset=trainset, batch_size=batach_size, shuffle=True, collate_fn=collate_fn)
-# test_loader = DataLoader(dataset=test_df, batch_size=batach_size, shuffle=False)
+y_train = Y_train.view(Y_train.shape[0], 1)
+y_test = Y_test.view(Y_test.shape[0], 1)
 
-epochs = 50
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+epochs = 10000
 Loss = []
 acc = []
-for epoch in range(epochs):
-    for i, (feats, labels, ids) in enumerate(train_loader):
-        optimizer.zero_grad()
-        outputs = log_regr(feats).squeeze()
-        x = 0
-        loss = criterion(outputs, labels)
-        # Loss.append(loss.item())
-        loss.backward()
-        optimizer.step()
+for epoch in tqdm(range(epochs)):
+    optimizer.zero_grad()
+    outputs = log_regr(X_train).squeeze()
+    x = 0
+    loss = criterion(outputs, Y_train)
+    loss.backward()
+    optimizer.step()
     Loss.append(loss.item())
-    correct = 0
-    # for images, labels in test_loader:
-    #     outputs = log_regr(images.view(-1, 28 * 28))
-    #     _, predicted = torch.max(outputs.data, 1)
-    #     correct += (predicted == labels).sum()
-    # accuracy = 100 * (correct.item()) / len(test_df)
-    # acc.append(accuracy)
-    # print('Epoch: {}. Loss: {}. Accuracy: {}'.format(epoch, loss.item(), accuracy))
+    if (epoch+1) % 1000 == 0:
+        print(f'epoch: {epoch+1}, loss = {loss.item():.4f}\n')
+        print(f'number of ones: {len(outputs[outputs >= 0.5])}')
+
+
+with torch.no_grad():
+    y_predicted = log_regr(X_test).squeeze()
+    y_predicted_cls = y_predicted.round()
+    print(len(y_predicted[y_predicted == 1]))
+    f1_1 = f1_score(Y_test, y_predicted_cls)
+    print(f"f_1_1 score: {f1_1}")
