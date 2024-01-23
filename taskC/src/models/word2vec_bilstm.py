@@ -20,8 +20,9 @@ class Word2VecBiLSTM(nn.Module):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
+        self.dropout = dropout
 
-        if pretrained_embeddings:
+        if pretrained_embeddings is not None:
             self.vocab_size = pretrained_embeddings.shape[0]
             self.emb_size = pretrained_embeddings.shape[1]
             self.emb = nn.Embedding.from_pretrained(pretrained_embeddings)
@@ -40,7 +41,9 @@ class Word2VecBiLSTM(nn.Module):
         )
 
         self.lstm2out = nn.Linear(hidden_size * 2, 2)
-
+        self.to_device()
+        
+    def to_device(self):
         self.emb.cpu()
         self.lstm.to(get_device())
         self.lstm2out.to(get_device())
@@ -68,8 +71,9 @@ class Word2VecBiLSTM(nn.Module):
         }
         torch.save(cp, path)
 
+    @classmethod
     def from_pretrained(cls, path):
-        cp = torch.load(path)
+        cp = torch.load(path, map_location=torch.device("cpu"))
         model = cls(
             vocab_size=cp["vocab_size"],
             emb_size=cp["emb_size"],
@@ -78,7 +82,8 @@ class Word2VecBiLSTM(nn.Module):
             dropout=cp["dropout"],
         )
         model.load_state_dict(cp["state_dict"])
-        return model
+        model.to_device()
+        return model, cp
 
 
 class Word2VecTokenizer:
@@ -109,6 +114,9 @@ class Word2VecTokenizer:
         word = re.sub(r"([^\w\s])", r" \1 ", word)
         subwords = word.split()
         subwords = [" " if x == "" else x for x in subwords]
+        if len (subwords) == 0:
+            # input ' ' turns into empty list, correct that 
+            subwords = [" "]
         return subwords
 
     def _is_punct(self, word: str):
@@ -144,7 +152,12 @@ class Word2VecTokenizer:
                 for subword in subwords:
                     text_ids.append(self._get_id(subword))
                     text_words.append(word_idx)
-                    text_labels.append(label_bound[word_idx])
+                    if label_bound == -1 or word_idx < label_bound:
+                        # -1 -> imported from task A, fully
+                        # human text
+                        text_labels.append(0)
+                    else:
+                        text_labels.append(1)
             _ids.append(text_ids)
             _words.append(text_words)
             _labels.append(text_labels)
@@ -158,17 +171,16 @@ class Word2VecTokenizer:
             _words[i] = _words[i][:longest]
             _labels[i] = _labels[i][:longest]
             l = len(_ids[i])
-            _attentions[i] = [1] * l
+            _attentions.append([1] * l)
             if l < longest:
                 _ids[i] += [self.word2idx[self.PAD]] * (longest - l)
                 _words[i] += [-1] * (longest - l)
                 _labels[i] += [0] * (longest - l)
                 _attentions[i] += [0] * (longest - l)
-
         return (
             torch.tensor(_ids),
-            torch.tensor(_words),
             torch.tensor(_labels),
+            torch.tensor(_words),
             torch.tensor(_attentions)
         )
 
@@ -192,7 +204,7 @@ class Word2VecTokenizer:
                 vec = [float(x) for x in spl[-emb_size:]]
                 word = " ".join(spl[:-emb_size])
 
-                if len(word.split()) > 1:
+                if len(word.split()) > 1 or "ENTITY/" in word:
                     continue
 
                 word2idx[word] = i
@@ -216,16 +228,22 @@ class Word2VecTokenizer:
         return cls(word2idx, idx2word, max_len=max_len)
 
     @staticmethod
-    def collate_fn(tokenizer):
+    def collate_fn(tokenizer, check_label_mismatch=False):
         def collate_batch(batch):
             texts = [x[0] for x in batch]
             true_labels = [x[1] for x in batch]
-            input_ids, words, labels, attentions = tokenizer.tokenize(
+            input_ids, labels, words, attentions = tokenizer.tokenize(
                 texts, true_labels)
 
-            for i in range(len(texts)):
-                assert true_labels[i] == labels[i].tolist().index(1)
-
-            return input_ids, words, labels, attentions
+            if check_label_mismatch:
+                for i in range(len(texts)):
+                    mapped_label = labels[i].tolist().index(1)
+                    mapped_label = words[i].tolist()[mapped_label]
+                    try:
+                        assert true_labels[i] == mapped_label
+                    except:
+                        print("Detected label mismatch", mapped_label, true_labels[i])
+                        print(labels[i].tolist())
+            return input_ids, labels, words, attentions
 
         return collate_batch

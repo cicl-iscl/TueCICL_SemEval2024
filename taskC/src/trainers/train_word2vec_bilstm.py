@@ -6,7 +6,7 @@ from tqdm import tqdm
 from loader.data import TaskC_Data
 from util.checkpoints import ProgressTracker
 
-from util.device import get_device
+from util.device import get_device, set_preferred_device
 from models.word2vec_bilstm import Word2VecBiLSTM, Word2VecTokenizer
 from torch.utils.data import DataLoader
 
@@ -16,7 +16,9 @@ def add_args(parser):
     def p(cmd): return f"--word2vec-bilstm-{cmd}"
     group.add_argument(p("tokenizer-path"), type=str, default=None)
     group.add_argument(p("tokenizer-vocab"), type=str, default=None)
+    group.add_argument(p("tokenizer-weights"), type=str, default=None)
     group.add_argument(p("save-vocab"), type=str, default=None)
+    group.add_argument(p("save-weights"), type=str, default=None)
     group.add_argument(p("emb-size"), type=int, default=500)
     group.add_argument(p("tokenizer-max-len"), type=int, default=10000)
     group.add_argument(p("batch-size"), type=int, default=8)
@@ -30,11 +32,15 @@ def add_args(parser):
     group.add_argument(p("num-layers"), type=int, default=2)
     group.add_argument(p("dropout"), type=float, default=0.2)
     group.add_argument(p("checkpoint-prefix"), type=str, default="char_bilstm")
-    group.add_argument(p("load-model"), type=str, default="char_bilstm")
-
+    group.add_argument(p("load-model"), type=str, default=None)
+    group.add_argument(p("prefer-cuda-device"), type=int, default=0)
 
 def evaluate(_model, dev_loader):
-    model = _model.module
+    _model.eval()
+    if hasattr(_model, "module"):
+        model = _model.module
+    else:
+        model = _model
     model.eval()
     distances = []
 
@@ -48,7 +54,6 @@ def evaluate(_model, dev_loader):
         return words[_i].item()
 
     for ids, labels, words, _ in dev_loader:
-        ids = ids.to(get_device())
         with torch.no_grad():
             out = model(ids)
             preds = torch.argmax(out, dim=-1)
@@ -78,7 +83,6 @@ class TrainingArguments:
 
 def perform_training_step(args, batch):
     ids, labels, _, attentions = batch
-    ids = ids.to(get_device())
     labels = labels.to(get_device())
     args.optimizer.zero_grad()
 
@@ -126,6 +130,7 @@ def train(args: TrainingArguments):
                 loss = perform_training_step(args, batch)
                 i += 1
                 pbar.update(1)
+                losses.append(loss)
                 if i % args.save_every_pure == 0 and i != 0:
                     l = sum(losses) / len(losses)
                     losses = []
@@ -142,20 +147,36 @@ def entry(args: Namespace):
     def arg(cmd):
         p = f"word2vec_bilstm_{cmd.replace('-', '_')}"
         return args.__getattribute__(p)
+    
+    if arg("prefer-cuda-device") is not None:
+        set_preferred_device(f"cuda:{arg('prefer-cuda-device')}")
+        device = get_device()
+        print(f"Using device {device}")
 
     weights = None
     if arg("tokenizer-vocab"):
         tokenizer = Word2VecTokenizer.from_pretrained(arg("tokenizer-vocab"))
+        if arg("load-model") is None and arg("tokenizer-weights"):
+            weights = torch.load(arg("tokenizer-weights"))
+        elif arg("load-model") is None and arg("tokenizer-weights") is None:
+            raise ValueError("No pretrained weights provided")
     elif arg("tokenizer-path"):
-        tokenizer, weights = Word2VecTokenizer.from_txt(arg("tokenizer-path"))
+        tokenizer, weights = Word2VecTokenizer.from_txt(arg("tokenizer-path"), emb_size=arg("emb-size"))
         if arg("save-vocab"):
             tokenizer.save(arg("save-vocab"))
+        if arg("save-weights"):
+            torch.save(weights, arg("save-weights"))
     else:
         raise ValueError(
             "Either tokenizer-path or tokenizer-vocab must be provided")
 
     if arg("load-model"):
-        model = Word2VecBiLSTM.from_pretrained(arg("load-model"))
+        model, checkpoint = Word2VecBiLSTM.from_pretrained(arg("load-model"))
+        print("Loaded model from", arg("load-model"))
+        optimizer = torch.optim.Adam(model.parameters(), lr=arg("lr"))
+        # if "optimizer" in checkpoint:
+        #     optimizer.load_state_dict(checkpoint["optimizer"])
+        #     print("Loaded optimizer state dict")
     else:
         if weights is None:
             raise ValueError("No pretrained weights provided")
@@ -165,9 +186,9 @@ def entry(args: Namespace):
             num_layers=arg("num-layers"),
             dropout=arg("dropout"),
         )
+        optimizer = torch.optim.Adam(model.parameters(), lr=arg("lr"))
+
     print(model)
-    model = torch.nn.DataParallel(model)
-    optimizer = torch.optim.Adam(model.parameters(), lr=arg("lr"))
 
     train_ds_ext = TaskC_Data(split="train")
     train_ds_ext.import_task_A()
@@ -192,7 +213,7 @@ def entry(args: Namespace):
         dev_ds,
         batch_size=arg("batch-size"),
         shuffle=False,
-        collate_fn=Word2VecTokenizer.collate_fn(tokenizer)
+        collate_fn=Word2VecTokenizer.collate_fn(tokenizer, check_label_mismatch=True),
     )
 
     training_arguments = TrainingArguments(
