@@ -1,22 +1,17 @@
-import pandas as pd
 import torch
 import torch.nn as nn
+
+from util.device import get_device
+from sklearn.metrics import classification_report, precision_recall_fscore_support
+from loader.data import TaskA_Dataset
 from torch.utils.data import DataLoader
-import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import f1_score
-from tqdm import tqdm
 
 
-class Model(nn.Module):
+class SpacyFeaturesMLP(nn.Module):
     def __init__(self, n_input_features, n_output_features):
-        super(Model, self).__init__()
+        super(SpacyFeaturesMLP, self).__init__()
         self.mlp = nn.Sequential(
             nn.Linear(n_input_features, 128),
-            nn.ReLU(),
-            nn.Linear(128, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, n_output_features)
         )
@@ -25,96 +20,55 @@ class Model(nn.Module):
         y_pred = torch.sigmoid(self.mlp(x))
         return y_pred
 
+    def to_device(self):
+        self.mlp.to(get_device())
+
+    @classmethod
+    def from_pretrained(cls, path):
+        print(path)
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        model = cls(66, 1)
+        model.load_state_dict(state_dict)
+        model.to_device()
+        return model
 
 
-
-class TaskA_Dataset(torch.utils.data.Dataset):
-    def __init__(self, split="train") -> None:
-        if split == "train":
-            self.data = pd.read_json("../../data/subtaskA_spacy_feats.json")
-            self.data = self.data.sample(frac=1).reset_index(drop=True)
-            self.data.drop(["passed_quality_check", "oov_ratio", "n_characters", "n_sentences"], inplace=True, axis=1)
-            self.data.dropna(inplace=True)
-            self.feats = np.array(self.data.drop(["label", "id", "text"], axis=1).values)
-            X_train = self.feature_scale(self.feats, True)
-            X_train = torch.from_numpy(X_train.astype(np.float64))
-            self.feats = X_train
-        else:
-            self.data = pd.read_json("../../data/subtaskA_test_spacy_feats.json")
-            self.data = self.data.sample(frac=1).reset_index(drop=True)
-            self.data.drop(["passed_quality_check", "oov_ratio", "n_characters", "n_sentences"], inplace=True, axis=1)
-            self.data.dropna(inplace=True)
-            self.feats = np.array(self.data.drop(["label", "id", "text"], axis=1).values)
-            X_test = self.feature_scale(self.feats, False)
-            X_test = torch.from_numpy(X_test.astype(np.float64))
-            self.feats = X_test
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        item = self.data.iloc[index]
-        label, id = item["label"], item["id"]
-        return self.feats[index], label, id
-
-    def feature_scale(self, x, train):
-        if train:
-            means = np.mean(x, axis=0)
-            sd = np.std(x, axis=0)
-            self.means = means
-            self.sd = sd
-        else:
-            means = train_set.means
-            sd = train_set.sd
-        means = np.tile(means, (np.shape(x)[0], 1))
-        sd = np.tile(sd, (np.shape(x)[0], 1))
-        return (x - means) / sd
+def collate_fn(batch):
+    texts, labels, ids, spacy_feats = zip(*batch)
+    texts = list(texts)
+    labels = torch.tensor(labels, dtype=torch.long)
+    ids = list(ids)
+    spacy_feats = torch.tensor(spacy_feats, dtype=torch.float32)
+    return spacy_feats, labels, ids
 
 
-log_regr = Model(66, 1)
-log_regr.double()
-# defining the optimizer
-optimizer = torch.optim.Adam(log_regr.parameters(), lr=0.0005)
-# defining Cross-Entropy loss
-criterion = torch.nn.BCELoss()
+def evaluate(model: SpacyFeaturesMLP, dev_loader, f1_only=True):
+    model.eval()
+    y_pred = []
+    y_gold = []
+    with torch.no_grad():
+        for spacy_feats, labels, _ in dev_loader:
+            spacy_feats = spacy_feats.to(get_device())
+            out = model(spacy_feats)
+            pred = out.argmax(dim=1)
+            for i in range(pred.shape[0]):
+                y_pred.append(pred[i].item())
+                y_gold.append(labels[i].item())
 
-train_set = TaskA_Dataset("train")
-test_set = TaskA_Dataset("test")
-X_train = train_set.feats
-Y_train = torch.from_numpy(train_set.data.label.values.astype(np.float64))
-X_test = test_set.feats
+    r = classification_report(y_gold, y_pred, zero_division=0.0)
+    _, _, f1, _ = precision_recall_fscore_support(
+        y_gold, y_pred, average="macro", zero_division=0.0)
 
-# test = torch.sum(X_test, dim=0)
-# train = x = torch.sum(X_train, dim=0)
+    if f1_only:
+        return f1
 
-Y_test = torch.from_numpy(test_set.data.label.values.astype(np.float64))
+    return f1, r
 
-y_train = Y_train.view(Y_train.shape[0], 1)
-y_test = Y_test.view(Y_test.shape[0], 1)
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-log_regr = log_regr.to(device)
-X_train = X_train.to(device)
-Y_train = Y_train.to(device)
-X_test = X_test.to(device)
-Y_test = Y_test.to(device)
-
-epochs = 2000
-Loss = []
-acc = []
-for epoch in tqdm(range(epochs)):
-    optimizer.zero_grad()
-    outputs = log_regr(X_train).squeeze()
-    x = 0
-    loss = criterion(outputs, Y_train)
-    loss.backward()
-    optimizer.step()
-    Loss.append(loss.item())
-    if (epoch+1) % 100 == 0:
-        print(f'epoch: {epoch+1}, loss = {loss.item():.4f}\n')
-        print(f'number of ones: {len(outputs[outputs >= 0.5])}')
-        with torch.no_grad():
-            y_predicted = log_regr(X_test).squeeze()
-            y_predicted_cls = y_predicted.round()
-            print(f'number of ones: {len(y_predicted[y_predicted == 1])}')
-            f1_1 = f1_score(Y_test.cpu(), y_predicted_cls.cpu())
-            print(f"f_1_1 score: {f1_1}")
+def demo():
+    ds = TaskA_Dataset(split="train", return_spacy=True)
+    dl = DataLoader(ds, batch_size=32, shuffle=False, collate_fn=collate_fn)
+    model_path = "../data/pretrained/spacy_feats_mlp.pt"
+    model = SpacyFeaturesMLP.from_pretrained(model_path)
+    _, report = evaluate(model, dl, f1_only=False)
+    print(report)
