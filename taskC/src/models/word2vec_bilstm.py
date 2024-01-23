@@ -41,7 +41,9 @@ class Word2VecBiLSTM(nn.Module):
         )
 
         self.lstm2out = nn.Linear(hidden_size * 2, 2)
-
+        self.to_device()
+        
+    def to_device(self):
         self.emb.cpu()
         self.lstm.to(get_device())
         self.lstm2out.to(get_device())
@@ -71,7 +73,7 @@ class Word2VecBiLSTM(nn.Module):
 
     @classmethod
     def from_pretrained(cls, path):
-        cp = torch.load(path)
+        cp = torch.load(path, map_location=torch.device("cpu"))
         model = cls(
             vocab_size=cp["vocab_size"],
             emb_size=cp["emb_size"],
@@ -80,6 +82,7 @@ class Word2VecBiLSTM(nn.Module):
             dropout=cp["dropout"],
         )
         model.load_state_dict(cp["state_dict"])
+        model.to_device()
         return model, cp
 
 
