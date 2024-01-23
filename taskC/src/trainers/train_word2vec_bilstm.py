@@ -35,7 +35,6 @@ def add_args(parser):
     group.add_argument(p("dropout"), type=float, default=0.2)
     group.add_argument(p("checkpoint-prefix"), type=str, default="char_bilstm")
     group.add_argument(p("load-model"), type=str, default=None)
-    group.add_argument(p("use-parallel"), action="store_true", default=False)
     group.add_argument(p("prefer-cuda-device"), type=int, default=0)
 
 def evaluate(_model, dev_loader):
@@ -190,9 +189,8 @@ def entry(args: Namespace):
             dropout=arg("dropout"),
         )
         optimizer = torch.optim.Adam(model.parameters(), lr=arg("lr"))
+
     print(model)
-    if arg("use-parallel"):
-        model = torch.nn.DataParallel(model)
 
     train_ds_ext = TaskC_Data(split="train")
     train_ds_ext.import_task_A()
