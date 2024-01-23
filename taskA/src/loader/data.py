@@ -29,7 +29,6 @@ class TaskA_Dataset(Dataset):
                 self.spacy_ds = SpacyFeatures(split=split)
                 spacy_ds_train = SpacyFeatures(split="train")
                 self.spacy_ds.scale(*spacy_ds_train.get_scaling_parameters())
-            print(len(self.spacy_ds), len(self.data))
 
     def __len__(self):
         return len(self.data)
