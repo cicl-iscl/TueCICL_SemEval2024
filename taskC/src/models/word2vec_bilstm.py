@@ -69,6 +69,7 @@ class Word2VecBiLSTM(nn.Module):
         }
         torch.save(cp, path)
 
+    @classmethod
     def from_pretrained(cls, path):
         cp = torch.load(path)
         model = cls(
