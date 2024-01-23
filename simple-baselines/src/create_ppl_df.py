@@ -113,16 +113,16 @@ train_df, test_df = get_data("data/subtaskA_train_monolingual.jsonl",
 model = AutoModelForCausalLM.from_pretrained('gpt2')
 tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
 
-ppl_train = get_ppl_data(train_df.iloc[1:3,:], model, tokenizer, device)
+# ppl_test = get_ppl_data(test_df, model, tokenizer, device)
 
 # clf = LogisticRegression()
 # clf.fit(ppl_train, train_df.label)
 
-# ppl_test = get_ppl_data(test_df, model, tokenizer, device)
+ppl_test = get_ppl_data(test_df, model, tokenizer, device)
 # pred = clf.predict(ppl_test)
 
 train_df_ppl = train_df
-train_df_ppl["ppl"] = pd.Series(ppl_train)
+train_df_ppl["ppl"] = pd.Series(ppl_test)
 test_df_ppl = test_df
 # test_df_ppl["ppl"] = pd.Series(ppl_test)
 train_df_ppl.to_json("data/subtaskA_train_ppl.json")
