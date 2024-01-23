@@ -174,7 +174,12 @@ def entry(args: Namespace):
             "Either tokenizer-path or tokenizer-vocab must be provided")
 
     if arg("load-model"):
-        model = Word2VecBiLSTM.from_pretrained(arg("load-model"))
+        model, checkpoint = Word2VecBiLSTM.from_pretrained(arg("load-model"))
+        print("Loaded model from", arg("load-model"))
+        optimizer = torch.optim.Adam(model.parameters(), lr=arg("lr"))
+        if "optimizer" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            print("Loaded optimizer state dict")
     else:
         if weights is None:
             raise ValueError("No pretrained weights provided")
@@ -184,10 +189,10 @@ def entry(args: Namespace):
             num_layers=arg("num-layers"),
             dropout=arg("dropout"),
         )
+        optimizer = torch.optim.Adam(model.parameters(), lr=arg("lr"))
     print(model)
     if arg("use-parallel"):
         model = torch.nn.DataParallel(model)
-    optimizer = torch.optim.Adam(model.parameters(), lr=arg("lr"))
 
     train_ds_ext = TaskC_Data(split="train")
     train_ds_ext.import_task_A()

@@ -79,7 +79,7 @@ class Word2VecBiLSTM(nn.Module):
             dropout=cp["dropout"],
         )
         model.load_state_dict(cp["state_dict"])
-        return model
+        return model, cp
 
 
 class Word2VecTokenizer:
