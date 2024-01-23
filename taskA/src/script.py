@@ -10,6 +10,7 @@ from trainers.char_classifier import (
 from trainers.train_word2vec_classifier import (
     entry as train_word2vec_classifier, add_args as add_word2vec_classifier_args)
 
+from tl_scripts.gen_spacy_features import entry as gen_spacy_features
 
 torch.manual_seed(42)
 np.random.seed(42)
@@ -18,7 +19,7 @@ np.random.seed(42)
 if __name__ == "__main__":
     parser = ArgumentParser()
     choices = ["train_charlm", "train_char_classifier",
-               "train_word2vec_classifier"]
+               "train_word2vec_classifier", "gen_spacy_features"]
     parser.add_argument("command", help="Command to execute",
                         choices=choices)
     add_charlm_args(parser)
@@ -32,3 +33,5 @@ if __name__ == "__main__":
         train_char_classifier(args)
     elif args.command == "train_word2vec_classifier":
         train_word2vec_classifier(args)
+    elif args.command == "gen_spacy_features":
+        gen_spacy_features(args)
