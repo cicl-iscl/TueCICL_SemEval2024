@@ -1,35 +1,44 @@
+import json
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 import pandas as pd
 
 
-class SpacyFeatures(Dataset):
-    def __init__(self, split="train") -> None:
-        super().__init__()
-        path_train = "~/cicl/taskA/data/subtaskA_spacy_feats.json"
-        path_dev = "~/cicl/taskA/data/subtaskA_test_spacy_feats.json"
-        data_path = path_train if split == "train" else path_dev
-        self.data = pd.read_json(data_path)
-        self.data.drop(["passed_quality_check", "oov_ratio",
-                       "n_characters", "n_sentences"], inplace=True, axis=1)
-        self.data.dropna(inplace=True)
-        self.feats = np.array(self.data.drop(
-            ["label", "id", "text"], axis=1).values)
+class SpacyFeatures:
+    def __init__(self, train_path, dev_path) -> None:
+        self.train_ids, self.train_vectors = self.__load_data(
+            train_path)
+        self.dev_ids, self.dev_vectors = self.__load_data(
+            "/Users/aron/cicl/taskA/data/subtaskA_dev_spacy_feats.jsonl")
 
-    def get_scaling_parameters(self):
-        means = np.mean(self.feats, axis=0)
-        sd = np.std(self.feats, axis=0)
-        return means, sd
+    def __load_data(self, path):
+        _ids, vectors = {}, []
+        with open(path, 'r') as f:
+            i = 0
+            for line in f:
+                try:
+                    content = json.loads(line)
+                    vec = content["vector"]
+                    vec = [0.0 if not x else x for x in vec]
+                    _id = content["id"]
+                    _ids[_id] = i
+                    vectors.append(
+                        torch.tensor(vec, dtype=torch.float32)
+                    )
+                    i += 1
+                except:
+                    print(line)
+        return _ids, torch.stack(vectors)
 
-    def scale(self, means: np.ndarray = None, sd: np.ndarray = None):
-        means = np.tile(means, (np.shape(self.feats)[0], 1))
-        sd = np.tile(sd, (np.shape(self.feats)[0], 1))
-        self.feats = (self.feats - means) / sd
+    def scale(self):
+        mean = self.train_vectors.mean(dim=0)
+        std = self.train_vectors.std(dim=0)
+        self.train_vectors = (self.train_vectors - mean) / std
+        self.dev_vectors = (self.dev_vectors - mean) / std
 
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        item = self.data.iloc[index]
-        label, id = item["label"], item["id"]
-        return self.feats[index], label, id
+    def get(self, text_id, split="train"):
+        if split == "train":
+            return self.train_vectors[self.train_ids[text_id]]
+        else:
+            return self.dev_vectors[self.dev_ids[text_id]]

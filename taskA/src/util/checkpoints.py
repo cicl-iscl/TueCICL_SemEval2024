@@ -16,7 +16,7 @@ class ProgressTracker:
             os.makedirs(f"{self.basedir}/{prefix}")
         except:
             pass
-        
+
         if "best" not in self.progress:
             try:
                 best_path = f"{self.basedir}/{self.prefix}/best.pt"
@@ -24,6 +24,12 @@ class ProgressTracker:
                 self.progress["best"] = last_best["metric"]
             except:
                 self.progress["best"] = 0
+
+    def save(self, model, path, extra):
+        if hasattr(model, "module"):
+            model.module.save(path, extra)
+        else:
+            model.save(path, extra)
 
     def for_steps(self, model, dev_loader):
         best_path = f"{self.basedir}/{self.prefix}/best.pt"
@@ -34,8 +40,8 @@ class ProgressTracker:
         }
         if is_best:
             self.progress["best"] = metric
-            model.module.save(best_path, extra)
-        model.module.save(f"{self.basedir}/{self.prefix}/latest.pt", extra)
+            self.save(model, best_path, extra)
+        self.save(model, f"{self.basedir}/{self.prefix}/latest.pt", extra)
         return self.progress["best"], metric
 
     def for_epoch(self, model, optimizer, epoch, dev_loader):
@@ -46,4 +52,4 @@ class ProgressTracker:
             "metric": metric
         }
         fname = f"{self.basedir}/{self.prefix}/epoch_{epoch}.pt"
-        model.module.save(fname, extra)
+        self.save(model, fname, extra)

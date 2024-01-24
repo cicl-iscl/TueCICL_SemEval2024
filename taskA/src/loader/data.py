@@ -8,7 +8,7 @@ from loader.spacy import SpacyFeatures
 
 
 class TaskA_Dataset(Dataset):
-    def __init__(self, split="train", return_spacy=False) -> None:
+    def __init__(self, split="train", spacy_features: SpacyFeatures = None) -> None:
         self.split = split
         if split == "train":
             p = abspath(
@@ -20,15 +20,8 @@ class TaskA_Dataset(Dataset):
             self.data = pd.read_json(
                 p, lines=True)
 
-        self.return_spacy = return_spacy
-        if return_spacy:
-            if self.split == "train":
-                self.spacy_ds = SpacyFeatures(split=split)
-                self.spacy_ds.scale(*self.spacy_ds.get_scaling_parameters())
-            else:
-                self.spacy_ds = SpacyFeatures(split=split)
-                spacy_ds_train = SpacyFeatures(split="train")
-                self.spacy_ds.scale(*spacy_ds_train.get_scaling_parameters())
+        self.spacy_features = spacy_features
+        self.return_spacy = self.spacy_features is not None
 
     def __len__(self):
         return len(self.data)
@@ -37,7 +30,7 @@ class TaskA_Dataset(Dataset):
         item = self.data.iloc[index]
         text, label, _id = item["text"], item["label"], item["id"]
         if self.return_spacy:
-            spacy_feats, _, _ = self.spacy_ds[index]
+            spacy_feats = self.spacy_features.get(_id, self.split)
             return text, label, _id, spacy_feats
         return text, label, _id
 

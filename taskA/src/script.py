@@ -10,7 +10,9 @@ from trainers.char_classifier import (
 from trainers.train_word2vec_classifier import (
     entry as train_word2vec_classifier, add_args as add_word2vec_classifier_args)
 
-from models.lang_feats_mlp import demo as demo_spacy_mlp
+from trainers.train_lang_mlp import (
+    entry as train_lang_mlp, add_args as add_lang_mlp_args)
+
 
 torch.manual_seed(42)
 np.random.seed(42)
@@ -19,12 +21,13 @@ np.random.seed(42)
 if __name__ == "__main__":
     parser = ArgumentParser()
     choices = ["train_charlm", "train_char_classifier",
-               "train_word2vec_classifier", "demo_spacy_mlp"]
+               "train_word2vec_classifier", "train_lang_mlp"]
     parser.add_argument("command", help="Command to execute",
                         choices=choices)
     add_charlm_args(parser)
     add_char_classifier_args(parser)
     add_word2vec_classifier_args(parser)
+    add_lang_mlp_args(parser)
     args = parser.parse_args()
 
     if args.command == "train_charlm":
@@ -33,5 +36,5 @@ if __name__ == "__main__":
         train_char_classifier(args)
     elif args.command == "train_word2vec_classifier":
         train_word2vec_classifier(args)
-    elif args.command == "demo_spacy_mlp":
-        demo_spacy_mlp()
+    elif args.command == "train_lang_mlp":
+        train_lang_mlp(args)
