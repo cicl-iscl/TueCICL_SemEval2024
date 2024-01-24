@@ -10,7 +10,7 @@ class SpacyFeatures:
         self.train_ids, self.train_vectors = self.__load_data(
             train_path)
         self.dev_ids, self.dev_vectors = self.__load_data(
-            "/Users/aron/cicl/taskA/data/subtaskA_dev_spacy_feats.jsonl")
+            dev_path)
 
     def __load_data(self, path):
         _ids, vectors = {}, []

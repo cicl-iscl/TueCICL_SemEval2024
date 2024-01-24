@@ -10,9 +10,9 @@ class SpacyFeaturesMLP(nn.Module):
     def __init__(
         self,
         n_input_features,
-        n_output_features,
         hidden_size=128,
-        dropout=0.0
+        dropout=0.0,
+        n_output_features=2
     ):
         super(SpacyFeaturesMLP, self).__init__()
         self.n_input_features = n_input_features
@@ -52,9 +52,9 @@ class SpacyFeaturesMLP(nn.Module):
         cp = torch.load(path, map_location=torch.device('cpu'))
         model = cls(
             cp["n_input_features"],
-            cp["n_output_features"],
-            cp["hidden_size"],
-            cp["dropout"]
+            hidden_size=cp["hidden_size"],
+            dropout=cp["dropout"],
+            n_output_features=cp["n_output_features"],
         )
         model.load_state_dict(cp["state_dict"])
         model.to_device()

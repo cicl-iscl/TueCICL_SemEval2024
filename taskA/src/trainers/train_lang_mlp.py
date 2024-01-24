@@ -20,6 +20,7 @@ def add_args(parser):
     group.add_argument(p("spacy-n-feats"), type=int, default=66)
     group.add_argument(p("spacy-train-feats"), type=str, default=0.0)
     group.add_argument(p("spacy-dev-feats"), type=str, default=0.0)
+    group.add_argument(p("spacy-scale"), action="store_true", default=False)
     group.add_argument(p("n-epochs"), type=int, default=10)
     group.add_argument(p("save-every"), type=int, default=1)
     group.add_argument(p("train"), default=True, action="store_true")
@@ -101,7 +102,8 @@ def entry(args: Namespace):
         return getattr(args, "lang_mlp_" + name.replace("-", "_"))
     spacy_features = SpacyFeatures(
         arg("spacy_train_feats"), arg("spacy_dev_feats"))
-    spacy_features.scale()
+    if arg("spacy_scale"):
+        spacy_features.scale()
     ds_train = TaskA_Dataset(
         split="train", spacy_features=spacy_features)
     ds_dev = TaskA_Dataset(
@@ -119,7 +121,7 @@ def entry(args: Namespace):
             print("Loaded optimizer state dict")
     else:
         model = SpacyFeaturesMLP(
-            arg("spacy_n_feats"), 2, arg("hidden_size"), arg("dropout"))
+            arg("spacy_n_feats"), arg("hidden_size"), arg("dropout"))
         optimizer = torch.optim.AdamW(model.parameters(), lr=0.005)
         model.to_device()
     print(model)

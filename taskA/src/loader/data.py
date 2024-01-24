@@ -12,11 +12,12 @@ class TaskA_Dataset(Dataset):
         self.split = split
         if split == "train":
             p = abspath(
-                __file__, "../../data/subtaskA_train_monolingual.jsonl")
+                __file__, "../../data/task_files/subtaskA_train_monolingual.jsonl")
             self.data = pd.read_json(
                 p, lines=True)
         else:
-            p = abspath(__file__, "../../data/subtaskA_dev_monolingual.jsonl")
+            p = abspath(
+                __file__, "../../data/task_files/subtaskA_dev_monolingual.jsonl")
             self.data = pd.read_json(
                 p, lines=True)
 
