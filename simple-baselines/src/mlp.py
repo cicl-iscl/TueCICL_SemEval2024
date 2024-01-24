@@ -14,10 +14,6 @@ class Model(nn.Module):
         self.mlp = nn.Sequential(
             nn.Linear(n_input_features, 128),
             nn.ReLU(),
-            nn.Linear(128, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
             nn.Linear(128, n_output_features)
         )
 
@@ -32,7 +28,7 @@ class TaskA_Dataset(torch.utils.data.Dataset):
     def __init__(self, split="train") -> None:
         if split == "train":
             self.data = pd.read_json("../../data/subtaskA_spacy_feats.json")
-            self.data = self.data.sample(frac=1).reset_index(drop=True)
+            # self.data = self.data.sample(frac=1).reset_index(drop=True)
             self.data.drop(["passed_quality_check", "oov_ratio", "n_characters", "n_sentences"], inplace=True, axis=1)
             self.data.dropna(inplace=True)
             self.feats = np.array(self.data.drop(["label", "id", "text"], axis=1).values)
@@ -73,7 +69,7 @@ class TaskA_Dataset(torch.utils.data.Dataset):
 log_regr = Model(66, 1)
 log_regr.double()
 # defining the optimizer
-optimizer = torch.optim.Adam(log_regr.parameters(), lr=0.0005)
+optimizer = torch.optim.AdamW(log_regr.parameters(), lr=0.0003)
 # defining Cross-Entropy loss
 criterion = torch.nn.BCELoss()
 
@@ -101,7 +97,9 @@ Y_test = Y_test.to(device)
 epochs = 2000
 Loss = []
 acc = []
+best_f1 = 0
 for epoch in tqdm(range(epochs)):
+    log_regr.train()
     optimizer.zero_grad()
     outputs = log_regr(X_train).squeeze()
     x = 0
@@ -113,8 +111,12 @@ for epoch in tqdm(range(epochs)):
         print(f'epoch: {epoch+1}, loss = {loss.item():.4f}\n')
         print(f'number of ones: {len(outputs[outputs >= 0.5])}')
         with torch.no_grad():
+            log_regr.eval()
             y_predicted = log_regr(X_test).squeeze()
             y_predicted_cls = y_predicted.round()
-            print(f'number of ones: {len(y_predicted[y_predicted == 1])}')
-            f1_1 = f1_score(Y_test.cpu(), y_predicted_cls.cpu())
-            print(f"f_1_1 score: {f1_1}")
+            print(f'number of ones: {len(y_predicted_cls[y_predicted_cls == 1])}')
+            f1 = f1_score(Y_test.cpu(), y_predicted_cls.cpu())
+            print(f"f_1_1 score: {f1}")
+            if f1 > best_f1:
+                best_f1 = f1
+                torch.save(log_regr.state_dict(), '../../models/best_model.pth')
