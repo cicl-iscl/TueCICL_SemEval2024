@@ -46,7 +46,7 @@ def evaluate(model: Word2VecClassifier, dev_loader: torch.utils.data.DataLoader,
     model.eval()
     with torch.no_grad():
         for input_ids, labels, attentions in dev_loader:
-            out = model(input_ids)
+            out, _ = model(input_ids)
             pred = torch.round(out)
             for i in range(pred.shape[0]):
                 y_pred.append(pred[i].item())
@@ -94,7 +94,7 @@ def train_classifier(args: TrainingArgumets):
             for input_ids, labels, attentions in args.train_loader:
                 labels: torch.Tensor = labels.to(get_device())
                 args.optimizer.zero_grad()
-                out = args.model(input_ids)
+                out, _ = args.model(input_ids)
 
                 loss = args.criterion(out, labels)
 
