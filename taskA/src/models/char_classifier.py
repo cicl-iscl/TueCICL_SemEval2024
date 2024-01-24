@@ -14,7 +14,7 @@ class CharClassifier(nn.Module):
         self.emb_size = emb_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.dropout=dropout
+        self.dropout = dropout
 
         self.emb = nn.Embedding(vocab_size, emb_size)
         self.lstm = nn.LSTM(
@@ -26,17 +26,22 @@ class CharClassifier(nn.Module):
         )
         self.lstm2out = nn.Linear(hidden_size, 2)
 
+    def to_device(self):
+        self.emb.to(get_device())
+        self.lstm.to(get_device())
+        self.lstm2out.to(get_device())
+
     def forward(self, input_ids, lstm_hidden=None):
         if lstm_hidden is None:
             lstm_hidden = self.init_lstm_hidden(input_ids.shape[0])
 
         embedded = self.emb(input_ids)
         self.lstm.flatten_parameters()
-        out, lstm_hidden = self.lstm(embedded, lstm_hidden)
-        out = out[:, -1, :]
+        lstm_out, lstm_hidden = self.lstm(embedded, lstm_hidden)
+        out = lstm_out[:, -1, :]
         out = self.lstm2out(out)
         out = F.log_softmax(out, dim=1)
-        return out, lstm_hidden
+        return out, lstm_out
 
     def init_lstm_hidden(self, batch_size):
         h = torch.zeros((self.num_layers, batch_size, self.hidden_size),
@@ -63,7 +68,7 @@ class CharClassifier(nn.Module):
 
     @classmethod
     def from_pretrained(cls, path):
-        save_data = torch.load(path)
+        save_data = torch.load(path, map_location=torch.device("cpu"))
         model = cls(
             vocab_size=save_data["vocab_size"],
             emb_size=save_data["emb_size"],
@@ -72,8 +77,9 @@ class CharClassifier(nn.Module):
             dropout=save_data["dropout"]
         )
         model.load_state_dict(save_data["state_dict"])
+        model.to_device()
         return model
-    
+
     def __str__(self):
         return f"CharClassifier<vocab={self.vocab_size}, emb={self.emb_size}, h={self.hidden_size}, l={self.num_layers}>"
 

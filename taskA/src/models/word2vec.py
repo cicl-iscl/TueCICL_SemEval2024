@@ -43,7 +43,7 @@ class Word2VecClassifier(nn.Module):
             dropout=dropout,
         )
         self.lstm2class = nn.Linear(hidden_size, 2)
-        
+
     def to_device(self):
         self.emb.cpu()
         self.lstm.to(get_device())
@@ -53,11 +53,11 @@ class Word2VecClassifier(nn.Module):
         x: torch.Tensor = self.emb(x)
         x = x.to(get_device())
         self.lstm.flatten_parameters()
-        x, _ = self.lstm(x)
-        pred_class = self.lstm2class(x[:, -1, :])
+        lstm_out, _ = self.lstm(x)
+        pred_class = self.lstm2class(lstm_out[:, -1, :])
         pred_class = F.log_softmax(pred_class, dim=-1)
 
-        return pred_class
+        return pred_class, lstm_out
 
     def predict(self, x):
         pred_class, _ = self.forward(x)
