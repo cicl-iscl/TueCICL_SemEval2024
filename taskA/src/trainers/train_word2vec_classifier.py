@@ -79,8 +79,8 @@ class TrainingArgumets:
 
 def train_classifier(args: TrainingArgumets):
     cp = ProgressTracker(
-        args.checkpoint_prefix, 
-        evaluate_fn=evaluate, 
+        args.checkpoint_prefix,
+        evaluate_fn=evaluate,
         last_epoch_only=True,
         save_latest=False
     )
@@ -100,10 +100,10 @@ def train_classifier(args: TrainingArgumets):
                     print(input_ids)
                     raise
                 loss = args.criterion(out, labels)
-                losses.append(loss.item())
 
                 loss.backward()
                 args.optimizer.step()
+                losses.append(loss.item())
 
                 pbar.update(1)
                 i += 1
