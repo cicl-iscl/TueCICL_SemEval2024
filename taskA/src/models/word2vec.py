@@ -55,7 +55,7 @@ class Word2VecClassifier(nn.Module):
         self.lstm.flatten_parameters()
         lstm_out, _ = self.lstm(x)
         pred_class = self.lstm2class(lstm_out[:, -1, :])
-        pred_class = F.log_softmax(pred_class, dim=-1)
+        pred_class = F.sigmoid(pred_class)
 
         return pred_class, lstm_out
 
@@ -219,7 +219,7 @@ class Word2VecTokenizer:
         def collate_batch(batch):
             texts = [x[0] for x in batch]
             labels = [x[1] for x in batch]
-            labels = torch.tensor(labels)
+            labels = torch.tensor(labels, dtype=torch.float32)
             input_ids, attentions = tokenizer.tokenize(
                 texts)
             return input_ids, labels, attentions

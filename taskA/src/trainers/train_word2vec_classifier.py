@@ -47,7 +47,7 @@ def evaluate(model: Word2VecClassifier, dev_loader: torch.utils.data.DataLoader,
     with torch.no_grad():
         for input_ids, labels, attentions in dev_loader:
             out = model(input_ids)
-            pred = torch.argmax(out, dim=1)
+            pred = torch.round(out)
             for i in range(pred.shape[0]):
                 y_pred.append(pred[i].item())
                 y_gold.append(labels[i].item())
@@ -94,11 +94,8 @@ def train_classifier(args: TrainingArgumets):
             for input_ids, labels, attentions in args.train_loader:
                 labels: torch.Tensor = labels.to(get_device())
                 args.optimizer.zero_grad()
-                try:
-                    out = args.model(input_ids)
-                except:
-                    print(input_ids)
-                    raise
+                out = args.model(input_ids)
+
                 loss = args.criterion(out, labels)
 
                 loss.backward()
@@ -186,7 +183,7 @@ def entry(args: Namespace):
             shuffle=True,
             collate_fn=Word2VecTokenizer.collate_fn(tokenizer)
         )
-        criterion = torch.nn.NLLLoss()
+        criterion = torch.nn.BCELoss()
         arguments = TrainingArgumets(
             checkpoint_prefix=args.word2vec_classifier_checkpoint_prefix,
             clip=None,
