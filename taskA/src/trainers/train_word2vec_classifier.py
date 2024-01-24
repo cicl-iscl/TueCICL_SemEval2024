@@ -169,7 +169,6 @@ def entry(args: Namespace):
             ds,
             batch_size=args.word2vec_classifier_batch_size,
             shuffle=True,
-            drop_last=True,
             collate_fn=collate_fn(
                 Word2VecTokenizer.collate_fn(tokenizer))
         )
