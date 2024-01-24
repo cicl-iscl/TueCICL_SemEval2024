@@ -42,7 +42,7 @@ class Word2VecClassifier(nn.Module):
             batch_first=True,
             dropout=dropout,
         )
-        self.lstm2class = nn.Linear(hidden_size, 2)
+        self.lstm2class = nn.Linear(hidden_size, 1)
 
     def to_device(self):
         self.emb.cpu()
