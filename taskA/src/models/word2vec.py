@@ -43,7 +43,8 @@ class Word2VecClassifier(nn.Module):
             dropout=dropout,
         )
         self.lstm2class = nn.Linear(hidden_size, 2)
-
+        
+    def to_device(self):
         self.emb.cpu()
         self.lstm.to(get_device())
         self.lstm2class.to(get_device())
@@ -79,7 +80,7 @@ class Word2VecClassifier(nn.Module):
 
     @classmethod
     def from_pretrained(cls, path):
-        data = torch.load(path)
+        data = torch.load(path, map_location=torch.device("cpu"))
         model = cls(
             hidden_size=data["hidden_size"],
             num_layers=data["num_layers"],
@@ -88,6 +89,7 @@ class Word2VecClassifier(nn.Module):
             emb_size=data["emb_size"],
         )
         model.load_state_dict(data["model"])
+        model.to_device()
         return model, data
 
 
@@ -139,29 +141,19 @@ class Word2VecTokenizer:
             return self.word2idx[self.NUMBER]
         return self.word2idx.get(word, self.word2idx[self.UNK])
 
-    def tokenize(self, texts, label_bounds):
+    def tokenize(self, texts):
         _ids = []
         _attentions = []
-        _labels = []
 
         texts = self._split(texts)
 
         for text_idx, text in enumerate(texts):
-            label_bound = label_bounds[text_idx]
             text_ids = []
-            text_labels = []
             for word_idx, word in enumerate(text):
                 subwords = self._get_subwords(word)
                 for subword in subwords:
                     text_ids.append(self._get_id(subword))
-                    if label_bound == -1 or word_idx < label_bound:
-                        # -1 -> imported from task A, fully
-                        # human text
-                        text_labels.append(0)
-                    else:
-                        text_labels.append(1)
             _ids.append(text_ids)
-            _labels.append(text_labels)
 
         longest = max([len(x) for x in _ids])
         if longest > self.max_len:
@@ -169,16 +161,13 @@ class Word2VecTokenizer:
 
         for i in range(len(_ids)):
             _ids[i] = _ids[i][:longest]
-            _labels[i] = _labels[i][:longest]
             l = len(_ids[i])
             _attentions.append([1] * l)
             if l < longest:
                 _ids[i] += [self.word2idx[self.PAD]] * (longest - l)
-                _labels[i] += [0] * (longest - l)
                 _attentions[i] += [0] * (longest - l)
         return (
             torch.tensor(_ids),
-            torch.tensor(_labels),
             torch.tensor(_attentions)
         )
 
@@ -226,23 +215,13 @@ class Word2VecTokenizer:
         return cls(word2idx, idx2word, max_len=max_len)
 
     @staticmethod
-    def collate_fn(tokenizer, check_label_mismatch=False):
+    def collate_fn(tokenizer):
         def collate_batch(batch):
             texts = [x[0] for x in batch]
-            true_labels = [x[1] for x in batch]
-            input_ids, labels, words, attentions = tokenizer.tokenize(
-                texts, true_labels)
-
-            if check_label_mismatch:
-                for i in range(len(texts)):
-                    mapped_label = labels[i].tolist().index(1)
-                    mapped_label = words[i].tolist()[mapped_label]
-                    try:
-                        assert true_labels[i] == mapped_label
-                    except:
-                        print("Detected label mismatch",
-                              mapped_label, true_labels[i])
-                        print(labels[i].tolist())
-            return input_ids, labels, words, attentions
+            labels = [x[1] for x in batch]
+            labels = torch.tensor(labels)
+            input_ids, attentions = tokenizer.tokenize(
+                texts)
+            return input_ids, labels, attentions
 
         return collate_batch

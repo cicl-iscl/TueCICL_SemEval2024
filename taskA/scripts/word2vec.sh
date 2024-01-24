@@ -11,7 +11,7 @@ python3 script.py train_word2vec_classifier \
     --word2vec-classifier-batch-size 8 \
     --word2vec-classifier-n-epochs 10 \
     --word2vec-classifier-start-epoch 1 \
-    --word2vec-classifier-save-every 3000 \
+    --word2vec-classifier-save-every 2500 \
     --word2vec-classifier-do-train \
     --word2vec-classifier-max-len 2000 \
     --word2vec-classifier-emb-size 500 \

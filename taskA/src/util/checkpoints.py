@@ -6,11 +6,14 @@ from util.core import abspath
 
 
 class ProgressTracker:
-    def __init__(self, prefix, evaluate_fn) -> None:
+    def __init__(self, prefix, evaluate_fn, last_epoch_only=False, save_latest=True) -> None:
         self.progress = {}
         self.prefix = prefix
         self.basedir = abspath(__file__, "../../checkpoints")
         self.evaluate_fn = evaluate_fn
+        
+        self.last_epoch_only = last_epoch_only
+        self.save_latest = save_latest
 
         try:
             os.makedirs(f"{self.basedir}/{prefix}")
@@ -41,7 +44,8 @@ class ProgressTracker:
         if is_best:
             self.progress["best"] = metric
             self.save(model, best_path, extra)
-        self.save(model, f"{self.basedir}/{self.prefix}/latest.pt", extra)
+        if self.save_latest:
+            self.save(model, f"{self.basedir}/{self.prefix}/latest.pt", extra)
         return self.progress["best"], metric
 
     def for_epoch(self, model, optimizer, epoch, dev_loader):
@@ -51,5 +55,8 @@ class ProgressTracker:
             "epoch": epoch,
             "metric": metric
         }
-        fname = f"{self.basedir}/{self.prefix}/epoch_{epoch}.pt"
+        if self.last_epoch_only:
+            fname = f"{self.basedir}/{self.prefix}/last_epoch.pt"
+        else:
+            fname = f"{self.basedir}/{self.prefix}/epoch_{epoch}.pt"
         self.save(model, fname, extra)

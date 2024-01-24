@@ -8,7 +8,7 @@ from tqdm import tqdm
 from models.word2vec import Word2VecClassifier, Word2VecTokenizer
 
 from util.checkpoints import ProgressTracker
-from loader.data import TaskA_Dataset, collate_fn
+from loader.data import TaskA_Dataset
 from util.device import get_device
 
 
@@ -45,7 +45,7 @@ def evaluate(model: Word2VecClassifier, dev_loader: torch.utils.data.DataLoader,
     y_gold = []
     model.eval()
     with torch.no_grad():
-        for input_ids, attentions, labels in dev_loader:
+        for input_ids, labels, attentions in dev_loader:
             out = model(input_ids)
             pred = torch.argmax(out, dim=1)
             for i in range(pred.shape[0]):
@@ -78,14 +78,20 @@ class TrainingArgumets:
 
 
 def train_classifier(args: TrainingArgumets):
-    cp = ProgressTracker(args.checkpoint_prefix, evaluate_fn=evaluate)
+    cp = ProgressTracker(
+        args.checkpoint_prefix, 
+        evaluate_fn=evaluate, 
+        last_epoch_only=True,
+        save_latest=False
+    )
     i = 0
+    losses = []
     args.model.train()
 
     for epoch in range(args.start_epoch, args.n_epochs + 1):
         with tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
-            for input_ids, attentions, labels in args.train_loader:
+            for input_ids, labels, attentions in args.train_loader:
                 labels: torch.Tensor = labels.to(get_device())
                 args.optimizer.zero_grad()
                 try:
@@ -94,6 +100,7 @@ def train_classifier(args: TrainingArgumets):
                     print(input_ids)
                     raise
                 loss = args.criterion(out, labels)
+                losses.append(loss.item())
 
                 loss.backward()
                 args.optimizer.step()
@@ -103,10 +110,13 @@ def train_classifier(args: TrainingArgumets):
 
                 if i % args.save_every == 0 and i != 0:
                     best, latest = cp.for_steps(args.model, args.dev_loader)
+                    l = sum(losses) / len(losses)
+                    losses = []
                     args.model.train()
                     pbar.set_postfix({
                         "best": best,
-                        "latest": latest
+                        "latest": latest,
+                        "loss": l
                     })
             cp.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
             args.model.train()
@@ -157,6 +167,7 @@ def entry(args: Namespace):
             hidden_size=arg("hidden-size"),
             num_layers=arg("num-layers")
         )
+        model.to_device()
         optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
 
     print(model)
@@ -167,16 +178,13 @@ def entry(args: Namespace):
             ds,
             batch_size=args.word2vec_classifier_batch_size,
             shuffle=True,
-            collate_fn=collate_fn(
-                Word2VecTokenizer.collate_fn(tokenizer))
+            collate_fn=Word2VecTokenizer.collate_fn(tokenizer)
         )
         dev_loader = torch.utils.data.DataLoader(
             TaskA_Dataset(split="dev"),
             batch_size=args.word2vec_classifier_batch_size,
             shuffle=True,
-            drop_last=True,
-            collate_fn=collate_fn(
-                Word2VecTokenizer.collate_fn(tokenizer, check_label_mismatch=True))
+            collate_fn=Word2VecTokenizer.collate_fn(tokenizer)
         )
         criterion = torch.nn.NLLLoss()
         arguments = TrainingArgumets(
