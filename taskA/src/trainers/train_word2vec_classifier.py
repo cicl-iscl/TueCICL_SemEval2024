@@ -1,7 +1,5 @@
 from argparse import Namespace
 from dataclasses import dataclass
-import pickle
-import token
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 
 
