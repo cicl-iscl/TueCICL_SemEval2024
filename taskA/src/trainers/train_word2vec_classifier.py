@@ -95,6 +95,7 @@ def train_classifier(args: TrainingArgumets):
                 labels: torch.Tensor = labels.to(get_device())
                 args.optimizer.zero_grad()
                 out, _ = args.model(input_ids)
+                out = out.reshape(-1)
 
                 loss = args.criterion(out, labels)
 
