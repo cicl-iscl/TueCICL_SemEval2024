@@ -92,14 +92,12 @@ for epoch in tqdm(range(epochs)):
     loss.backward()
     optimizer.step()
     Loss.append(loss.item())
-    if (epoch+1) % 1000 == 0:
+    if (epoch+1) % 10 == 0:
         print(f'epoch: {epoch+1}, loss = {loss.item():.4f}\n')
         print(f'number of ones: {len(outputs[outputs >= 0.5])}')
-
-
-with torch.no_grad():
-    y_predicted = log_regr(X_test).squeeze()
-    y_predicted_cls = y_predicted.round()
-    print(len(y_predicted[y_predicted == 1]))
-    f1_1 = f1_score(Y_test, y_predicted_cls)
-    print(f"f_1_1 score: {f1_1}")
+        with torch.no_grad():
+            y_predicted = log_regr(X_test).squeeze()
+            y_predicted_cls = y_predicted.round()
+            print(len(y_predicted[y_predicted == 1]))
+            f1_1 = f1_score(Y_test, y_predicted_cls)
+            print(f"f_1_1 score: {f1_1}")
