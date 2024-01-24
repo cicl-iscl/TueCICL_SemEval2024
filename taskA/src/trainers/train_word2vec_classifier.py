@@ -171,7 +171,7 @@ def entry(args: Namespace):
             shuffle=True,
             drop_last=True,
             collate_fn=collate_fn(
-                tokenizer, args.word2vec_classifier_max_len, device=torch.device("cpu"))
+                Word2VecTokenizer.collate_fn(tokenizer))
         )
         dev_loader = torch.utils.data.DataLoader(
             TaskA_Dataset(split="dev"),
@@ -179,7 +179,7 @@ def entry(args: Namespace):
             shuffle=True,
             drop_last=True,
             collate_fn=collate_fn(
-                tokenizer, args.word2vec_classifier_max_len, device=torch.device("cpu"))
+                Word2VecTokenizer.collate_fn(tokenizer, check_label_mismatch=True))
         )
         criterion = torch.nn.NLLLoss()
         arguments = TrainingArgumets(
