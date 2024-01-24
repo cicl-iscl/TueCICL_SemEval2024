@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from util.device import get_device
 import re
 
+
 class Word2VecClassifier(nn.Module):
     def __init__(
         self,
@@ -17,11 +18,11 @@ class Word2VecClassifier(nn.Module):
         emb_size=None,
     ) -> None:
         super().__init__()
-        
+
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.dropout = dropout
-        
+
         if pretrained_embeddings is not None:
             self.vocab_size = pretrained_embeddings.shape[0]
             self.emb_size = pretrained_embeddings.shape[1]
@@ -31,9 +32,9 @@ class Word2VecClassifier(nn.Module):
             self.emb_size = emb_size
             self.emb = nn.Embedding(vocab_size, emb_size)
         else:
-            raise ValueError("Either pretrained_embeddings or vocab_size and emb_size must be provided")   
-         
-        
+            raise ValueError(
+                "Either pretrained_embeddings or vocab_size and emb_size must be provided")
+
         self.lstm = nn.LSTM(
             self.emb_size,
             hidden_size,
@@ -61,7 +62,7 @@ class Word2VecClassifier(nn.Module):
         pred_class, _ = self.forward(x)
         pred_class = pred_class.argmax(dim=1)
         return pred_class
-    
+
     def save(self, path, extra={}):
         torch.save({
             "model": self.state_dict(),
@@ -72,7 +73,7 @@ class Word2VecClassifier(nn.Module):
             "emb_size": self.emb_size,
             **extra
         }, path)
-    
+
     def __str__(self) -> str:
         return f"Word2VecClassifier(vocab_size={self.vocab_size}, emb_size={self.emb_size}, hidden_size={self.hidden_size}, num_layers={self.num_layers}, dropout={self.dropout})"
 
@@ -87,151 +88,161 @@ class Word2VecClassifier(nn.Module):
             emb_size=data["emb_size"],
         )
         model.load_state_dict(data["model"])
-        return model
+        return model, data
 
 
 class Word2VecTokenizer:
+    WHITESPACE = "<WS>"
+    NUMBER = "<NUM>"
+    PUNCT = "<P>"
     UNK = "<UNK>"
     PAD = "<PAD>"
-    BOS = "<BOS>"
-    EOS = "<EOS>"
-    NUMBER = "<NUM>"
-    WHITESPACE = "<WS>"
-    PUNCTUATION = "<PUNCT>"
 
-    def __init__(self, idx2word, word2idx, weights=None) -> None:
-        self.idx2word = idx2word
+    def __init__(self, word2idx, idx2word, max_len=5000) -> None:
         self.word2idx = word2idx
-        self.weights = weights
+        self.idx2word = idx2word
+        self.max_len = max_len
 
-    def save(self, weights_path=None, vocab_path=None):
-        with open(weights_path, "wb") as f:
-            pickle.dump(self.weights, f)
-        with open(vocab_path, "wb") as f:
-            pickle.dump((self.idx2word, self.word2idx), f)
-            
-    def _clean(self, text: str):
-        text = text.lower()
-        # replace "{punct}" with " {punct} "
-        text = re.sub(r"([^\w\s])", r" \1 ", text)
-        return text
-            
-    def _is_space(self, token):
-        pat = re.compile(r"\s+")
-        return pat.match(token) is not None
-    
-    def _is_number(self, token):
-        pat = re.compile(r"\d+")
-        return pat.match(token) is not None
+    def _split(self, texts):
+        spl = [
+            text.lower().split(" ")
+            for text in texts
+        ]
+        adj = [
+            [" " if x == "" else x for x in text]
+            for text in spl
+        ]
+        return adj
 
-    def _get_ids(self, tokens):
+    def _get_subwords(self, word):
+        # separate punctuation marks
+        word = re.sub(r"([^\w\s])", r" \1 ", word)
+        subwords = word.split()
+        subwords = [" " if x == "" else x for x in subwords]
+        if len(subwords) == 0:
+            # input ' ' turns into empty list, correct that
+            subwords = [" "]
+        return subwords
+
+    def _is_punct(self, word: str):
+        return re.match(r"([^\w\s])", word)
+
+    def _is_number(self, word: str):
+        return re.match(r"^[0-9]+$", word)
+
+    def _get_id(self, word: str):
+        if word.isspace():
+            return self.word2idx[self.WHITESPACE]
+        elif self._is_punct(word):
+            return self.word2idx[self.PUNCT]
+        elif self._is_number(word):
+            return self.word2idx[self.NUMBER]
+        return self.word2idx.get(word, self.word2idx[self.UNK])
+
+    def tokenize(self, texts, label_bounds):
         _ids = []
-        def idof(token): return self.word2idx.get(
-            token, self.word2idx[self.UNK])
-        for token in tokens:
-            if self._is_space(token):
-                _ids.append(idof(self.WHITESPACE))
-            elif token in string.punctuation:
-                _ids.append(idof(self.PUNCTUATION))
-            elif self._is_number(token):
-                _ids.append(idof(self.NUMBER))
-            else:
-                _ids.append(idof(token))
-        return _ids
+        _attentions = []
+        _labels = []
 
-    def tokenize(self, texts, add_special_tokens=False, max_len=None, device=get_device()):
-        tokens = [self._clean(text).split(" ") for text in texts]
-        longest = max([len(x) for x in tokens])
-        if max_len is not None:
-            longest = min(longest, max_len)
-        tokens = [x[:longest] for x in tokens]
-        if add_special_tokens:
-            tokens = [[self.BOS] + x + [self.EOS] for x in tokens]
-            longest = longest + 2
-        attentions = []
-        for i, text in enumerate(tokens):
-            attentions.append([1] * len(text))
-            if len(text) < longest:
-                attentions[i] = attentions[i] + [0] * (longest - len(text))
-                tokens[i] += [self.PAD] * (longest - len(text))
-        
-        ids = [self._get_ids(x) for x in tokens]
+        texts = self._split(texts)
+
+        for text_idx, text in enumerate(texts):
+            label_bound = label_bounds[text_idx]
+            text_ids = []
+            text_labels = []
+            for word_idx, word in enumerate(text):
+                subwords = self._get_subwords(word)
+                for subword in subwords:
+                    text_ids.append(self._get_id(subword))
+                    if label_bound == -1 or word_idx < label_bound:
+                        # -1 -> imported from task A, fully
+                        # human text
+                        text_labels.append(0)
+                    else:
+                        text_labels.append(1)
+            _ids.append(text_ids)
+            _labels.append(text_labels)
+
+        longest = max([len(x) for x in _ids])
+        if longest > self.max_len:
+            longest = self.max_len
+
+        for i in range(len(_ids)):
+            _ids[i] = _ids[i][:longest]
+            _labels[i] = _labels[i][:longest]
+            l = len(_ids[i])
+            _attentions.append([1] * l)
+            if l < longest:
+                _ids[i] += [self.word2idx[self.PAD]] * (longest - l)
+                _labels[i] += [0] * (longest - l)
+                _attentions[i] += [0] * (longest - l)
         return (
-            torch.tensor(ids, dtype=torch.long, device=device), 
-            torch.tensor(attentions, dtype=torch.long, device=device)
+            torch.tensor(_ids),
+            torch.tensor(_labels),
+            torch.tensor(_attentions)
         )
 
-    def extend(self, texts, emb_size=500):
-        for text in texts:
-            spl = self._clean(text).split()
-            for token in spl:
-                if token not in self.word2idx:
-                    self.word2idx[token] = len(self.word2idx)
-                    self.idx2word[len(self.idx2word)] = token
-                    w = torch.tensor([0.0] * emb_size, dtype=torch.float32)
-                    self.weights = torch.cat([self.weights, w.unsqueeze(0)])
-                    
-    def purge(self):
-        del_ids = set()
-        for word in self.word2idx:
-            idx = self.word2idx[word]
-            if not word or len(word.split()) > 1 or self._is_number(word) or self._is_space(word):
-                del_ids.add(idx)
-        
-        word2idx = {}
-        idx2word = {}
-        weights = []
-        
-        i = 0
-        for word in self.word2idx:
-            idx = self.word2idx[word]
-            if idx not in del_ids:
-                w = self.weights[idx].cpu().tolist()
-                word2idx[word] = i
-                idx2word[i] = word
-                weights.append(w)
-                i += 1
-        
-        self.word2idx = word2idx
-        self.idx2word = idx2word
-        self.weights = torch.tensor(weights, dtype=torch.float32)
+    def save(self, path):
+        with open(path, "wb") as f:
+            pickle.dump(self.word2idx, f)
 
     @classmethod
-    def from_txt(cls, path, emb_size=500):
+    def from_txt(cls, path, emb_size, max_len=5000):
         word2idx = {}
         idx2word = {}
         weights = []
         print("Loading word2vec from", path)
         with open(path, "r") as f:
-            next(f)  #  skip header
-            for i, line in enumerate(f):
+            next(f)
+            i = 0
+            for line in f:
                 if not line:
                     continue
-                try:
-                    spl = line.split()
-                    vec = [float(x) for x in spl[-emb_size:]]
-                    word = " ".join(spl[:-emb_size])
-                    weights.append(vec)
-                    word2idx[word] = i
-                    idx2word[i] = word
-                except Exception as e:
-                    print(e)
-                    print(line)
+                spl = line.split()
+                vec = [float(x) for x in spl[-emb_size:]]
+                word = " ".join(spl[:-emb_size])
 
-        for token in [cls.UNK, cls.PAD, cls.BOS, cls.EOS, cls.WHITESPACE, cls.PUNCTUATION, cls.NUMBER]:
+                if len(word.split()) > 1 or "ENTITY/" in word:
+                    continue
+
+                word2idx[word] = i
+                idx2word[i] = word
+                weights.append(vec)
+                i += 1
+
+        for token in [cls.WHITESPACE, cls.NUMBER, cls.UNK, cls.PAD, cls.PUNCT]:
             word2idx[token] = len(word2idx)
             idx2word[len(idx2word)] = token
             weights.append([0.0] * emb_size)
-        
-        weights = torch.tensor(weights, dtype=torch.float32)
 
-        o = cls(idx2word, word2idx, weights)
-        
-        return o
+        c = cls(word2idx, idx2word, max_len=max_len)
+        return c, torch.tensor(weights)
 
     @classmethod
-    def from_pkl(cls, path):
+    def from_pretrained(cls, path, max_len=5000):
         with open(path, "rb") as f:
-            data = pickle.load(f)
-            idx2word, word2idx = data
-        return cls(idx2word, word2idx)
+            word2idx = pickle.load(f)
+        idx2word = {v: k for k, v in word2idx.items()}
+        return cls(word2idx, idx2word, max_len=max_len)
+
+    @staticmethod
+    def collate_fn(tokenizer, check_label_mismatch=False):
+        def collate_batch(batch):
+            texts = [x[0] for x in batch]
+            true_labels = [x[1] for x in batch]
+            input_ids, labels, words, attentions = tokenizer.tokenize(
+                texts, true_labels)
+
+            if check_label_mismatch:
+                for i in range(len(texts)):
+                    mapped_label = labels[i].tolist().index(1)
+                    mapped_label = words[i].tolist()[mapped_label]
+                    try:
+                        assert true_labels[i] == mapped_label
+                    except:
+                        print("Detected label mismatch",
+                              mapped_label, true_labels[i])
+                        print(labels[i].tolist())
+            return input_ids, labels, words, attentions
+
+        return collate_batch
