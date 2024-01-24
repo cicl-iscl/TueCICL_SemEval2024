@@ -174,9 +174,9 @@ def entry(args: Namespace):
         model, checkpoint = Word2VecBiLSTM.from_pretrained(arg("load-model"))
         print("Loaded model from", arg("load-model"))
         optimizer = torch.optim.Adam(model.parameters(), lr=arg("lr"))
-        # if "optimizer" in checkpoint:
-        #     optimizer.load_state_dict(checkpoint["optimizer"])
-        #     print("Loaded optimizer state dict")
+        if "optimizer" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            print("Loaded optimizer state dict")
     else:
         if weights is None:
             raise ValueError("No pretrained weights provided")
