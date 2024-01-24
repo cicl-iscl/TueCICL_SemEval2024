@@ -28,6 +28,7 @@ def add_args(parser):
                        type=str, default="lang-mlp")
     group.add_argument(p("load-model"), type=str, default=None)
     group.add_argument(p("batch-size"), type=int, default=32)
+    group.add_argument(p("lr"), type=float, default=0.005)
 
 
 def evaluate(model: SpacyFeaturesMLP, dev_loader, f1_only=True):
@@ -115,14 +116,14 @@ def entry(args: Namespace):
     if arg("load-model"):
         model, checkpoint = SpacyFeaturesMLP.from_pretrained(arg("load-model"))
         print("Model loaded from", arg("load-model"))
-        optimizer = torch.optim.AdamW(model.parameters(), lr=0.005)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
         if "optimizer" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer"])
             print("Loaded optimizer state dict")
     else:
         model = SpacyFeaturesMLP(
             arg("spacy_n_feats"), arg("hidden_size"), arg("dropout"))
-        optimizer = torch.optim.AdamW(model.parameters(), lr=0.005)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
         model.to_device()
     print(model)
 

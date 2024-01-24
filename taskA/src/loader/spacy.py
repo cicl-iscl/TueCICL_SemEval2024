@@ -1,8 +1,5 @@
 import json
-import numpy as np
 import torch
-from torch.utils.data import Dataset
-import pandas as pd
 
 
 class SpacyFeatures:
@@ -11,6 +8,8 @@ class SpacyFeatures:
             train_path)
         self.dev_ids, self.dev_vectors = self.__load_data(
             dev_path)
+        self.dim = self.train_vectors.shape[1]
+        print(len(self.train_ids), len(self.dev_ids))
 
     def __load_data(self, path):
         _ids, vectors = {}, []
@@ -39,6 +38,14 @@ class SpacyFeatures:
 
     def get(self, text_id, split="train"):
         if split == "train":
-            return self.train_vectors[self.train_ids[text_id]]
+            try:
+                return self.train_vectors[self.train_ids[text_id]]
+            except:
+                print("[Warining] falling back to zero vector, key = ", text_id)
+                return torch.zeros(self.dim, dtype=torch.float32)
         else:
-            return self.dev_vectors[self.dev_ids[text_id]]
+            try:
+                return self.dev_vectors[self.dev_ids[text_id]]
+            except:
+                print("[Warining] falling back to zero vector, key = ", text_id)
+                return torch.zeros(self.dim, dtype=torch.float32)
