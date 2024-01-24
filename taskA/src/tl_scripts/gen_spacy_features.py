@@ -22,9 +22,9 @@ class DS(torch.utils.data.Dataset):
 
 
 def entry(args):
-    ds = DS(dev=True)
+    ds = DS(dev=False)
     dl = torch.utils.data.DataLoader(ds, batch_size=32, shuffle=False)
-    nlp = spacy.load('en_core_web_lg')
+    nlp = spacy.load('en_core_web_sm')
     nlp.add_pipe('textdescriptives/all')
     result = []
     for id, text in tqdm(dl):
@@ -46,7 +46,7 @@ def entry(args):
                 "id": _id
             }
             result.append(r)
-    out_path = '~/cicl/taskA/data/subtaskA_dev_spacy_feats.jsonl'
+    out_path = '~/cicl/taskA/data/subtaskA_train_spacy_feats_sm.jsonl'
     pd.DataFrame(result).to_json(out_path, lines=True, orient='records')
 
 # docs = nlp.pipe(train_df.text)
