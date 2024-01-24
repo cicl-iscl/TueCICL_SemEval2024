@@ -47,7 +47,7 @@ def evaluate(model, dev_loader, f1_only=True):
         for inputs, labels in dev_loader:
             inputs = inputs.to(get_device())
             out = model(inputs)
-            pred = out.argmax(dim=-1)
+            pred = out.round()
             for i in range(out.shape[0]):
                 y_pred.append(pred[i].item())
                 y_gold.append(labels[i].item())
@@ -88,6 +88,7 @@ def train(args: TrainingArguments):
                 input_ids = input_ids.to(get_device())
                 labels = labels.to(get_device())
                 out = args.model(input_ids)
+                out = out.squeeze()
                 loss = args.criterion(out, labels)
                 loss.backward()
                 args.optimizer.step()
@@ -159,6 +160,6 @@ def entry(args: Namespace):
             n_epochs=arg("n_epochs"),
             save_every=arg("save_every"),
             checkpoint_prefix=arg("checkpoint_prefix"),
-            criterion=torch.nn.NLLLoss()
+            criterion=torch.nn.BCELoss()
         )
         train(training_arguments)

@@ -25,8 +25,8 @@ class JointModel(nn.Module):
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.ReLU(),
             nn.Dropout(self.dropout),
-            nn.Linear(self.hidden_size, 2),
-            nn.LogSoftmax(dim=1)
+            nn.Linear(self.hidden_size, 1),
+            nn.Sigmoid()
         )
 
     def to_device(self):
