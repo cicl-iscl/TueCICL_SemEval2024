@@ -39,7 +39,7 @@ def evaluate(model: SpacyFeaturesMLP, dev_loader, f1_only=True):
         for spacy_feats, labels, _ in dev_loader:
             spacy_feats = spacy_feats.to(get_device())
             out = model(spacy_feats)
-            pred = out.argmax(dim=-1)
+            pred = out.round()
             for i in range(out.shape[0]):
                 y_pred.append(pred[i].item())
                 y_gold.append(labels[i].item())
