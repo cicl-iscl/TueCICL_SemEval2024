@@ -20,6 +20,7 @@ def add_args(parser):
     group.add_argument(p("spacy-n-feats"), type=int, default=66)
     group.add_argument(p("spacy-train-feats"), type=str, default=0.0)
     group.add_argument(p("spacy-dev-feats"), type=str, default=0.0)
+    group.add_argument(p("spacy-del-feats"), type=str, default=None)
     group.add_argument(p("spacy-scale"), action="store_true", default=False)
     group.add_argument(p("n-epochs"), type=int, default=10)
     group.add_argument(p("save-every"), type=int, default=1)
@@ -84,7 +85,6 @@ def train(args: TrainingArguments):
                 spacy_feats = spacy_feats.to(get_device())
                 labels = labels.to(get_device())
                 out = args.model(spacy_feats)
-                print(out)
                 out = out.reshape(-1)
                 loss = args.criterion(out, labels)
                 loss.backward()
@@ -111,7 +111,7 @@ def entry(args: Namespace):
     def arg(name):
         return getattr(args, "lang_mlp_" + name.replace("-", "_"))
     spacy_features = SpacyFeatures(
-        arg("spacy_train_feats"), arg("spacy_dev_feats"))
+        arg("spacy_train_feats"), arg("spacy_dev_feats"), del_feats=arg("spacy_del_feats"))
     if arg("spacy_scale"):
         spacy_features.scale()
     ds_train = TaskA_Dataset(
