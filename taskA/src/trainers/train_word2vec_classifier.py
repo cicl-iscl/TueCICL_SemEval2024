@@ -98,10 +98,12 @@ def train_classifier(args: TrainingArgumets):
                 out = out.reshape(-1)
 
                 loss = args.criterion(out, labels)
-
+                
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(args.model.parameters(), 1.0)
                 args.optimizer.step()
                 losses.append(loss.item())
+                
 
                 pbar.update(1)
                 i += 1
