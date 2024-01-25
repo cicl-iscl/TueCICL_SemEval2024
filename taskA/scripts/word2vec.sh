@@ -5,8 +5,8 @@ cd src
 python3 script.py train_word2vec_classifier \
     --word2vec-classifier-checkpoint-prefix word2vec-256-3-newtok \
     --word2vec-classifier-hidden-size 256 \
-    --word2vec-classifier-num-layers 3 \
-    --word2vec-classifier-dropout 0.2 \
+    --word2vec-classifier-num-layers 2 \
+    --word2vec-classifier-dropout 0.3 \
     --word2vec-classifier-lr 0.005 \
     --word2vec-classifier-batch-size 8 \
     --word2vec-classifier-n-epochs 10 \
