@@ -49,12 +49,26 @@ class Word2VecClassifier(nn.Module):
         self.lstm.to(get_device())
         self.lstm2class.to(get_device())
 
-    def forward(self, x):
+    def _last_with_attention(self, lstm_out, attention):
+        vecs = torch.zeros(
+            (lstm_out.shape[0], lstm_out.shape[2]),
+            dtype=torch.float32,
+            device=get_device()
+        )
+        for i in range(lstm_out.shape[0]):
+            l = attention[i].sum()
+            print(l, lstm_out.shape[1])
+            vecs[i] = lstm_out[i, :l, :]
+
+        return vecs
+
+    def forward(self, x, attention):
         x: torch.Tensor = self.emb(x)
         x = x.to(get_device())
         self.lstm.flatten_parameters()
         lstm_out, _ = self.lstm(x)
-        pred_class = self.lstm2class(lstm_out[:, -1, :])
+        last = self._last_with_attention(lstm_out, attention)
+        pred_class = self.lstm2class(last)
         pred_class = F.sigmoid(pred_class)
 
         return pred_class, lstm_out

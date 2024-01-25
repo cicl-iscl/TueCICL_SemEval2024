@@ -12,7 +12,7 @@ class SpacyFeaturesMLP(nn.Module):
         n_input_features,
         hidden_size=128,
         dropout=0.0,
-        n_output_features=2
+        n_output_features=1
     ):
         super(SpacyFeaturesMLP, self).__init__()
         self.n_input_features = n_input_features
@@ -22,15 +22,18 @@ class SpacyFeaturesMLP(nn.Module):
         self.mlp = nn.Sequential(
             nn.Linear(n_input_features, self.hidden_size),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.ReLU(),
             nn.Dropout(dropout),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
             nn.Linear(self.hidden_size, n_output_features)
         )
 
     def forward(self, x):
         out = self.mlp(x)
-        y_pred = F.log_softmax(out, dim=-1)
+        y_pred = F.sigmoid(out)
         return y_pred
 
     def to_device(self):
@@ -67,7 +70,7 @@ class SpacyFeaturesMLP(nn.Module):
 def collate_fn(batch):
     texts, labels, ids, spacy_feats = zip(*batch)
     texts = list(texts)
-    labels = torch.tensor(labels, dtype=torch.long)
+    labels = torch.tensor(labels, dtype=torch.float32)
     ids = list(ids)
     spacy_feats = torch.stack(spacy_feats)
     return spacy_feats, labels, ids
