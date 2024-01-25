@@ -56,9 +56,8 @@ class Word2VecClassifier(nn.Module):
             device=get_device()
         )
         for i in range(lstm_out.shape[0]):
-            l = attention[i].sum()
-            print(l, lstm_out.shape[1])
-            vecs[i] = lstm_out[i, :l, :]
+            l = attention[i].sum() - 1
+            vecs[i] = lstm_out[i, l, :]
 
         return vecs
 
