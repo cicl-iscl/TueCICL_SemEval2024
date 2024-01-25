@@ -84,9 +84,12 @@ def train(args: TrainingArguments):
                 spacy_feats = spacy_feats.to(get_device())
                 labels = labels.to(get_device())
                 out = args.model(spacy_feats)
+                print(out)
                 out = out.reshape(-1)
                 loss = args.criterion(out, labels)
                 loss.backward()
+
+                torch.nn.utils.clip_grad_norm_(args.model.parameters(), 1.0)
                 args.optimizer.step()
                 losses.append(loss.item())
                 pbar.update(1)

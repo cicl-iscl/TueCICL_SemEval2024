@@ -21,7 +21,7 @@ class SpacyFeaturesMLP(nn.Module):
         self.dropout = dropout
         self.mlp = nn.Sequential(
             nn.Linear(n_input_features, self.hidden_size),
-            nn.ReLU(),
+            nn.Sigmoid(),
             nn.Dropout(dropout),
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.ReLU(),
