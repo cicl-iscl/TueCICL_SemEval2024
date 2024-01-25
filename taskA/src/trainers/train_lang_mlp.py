@@ -68,7 +68,12 @@ class TrainingArguments:
 
 def train(args: TrainingArguments):
     i = 0
-    pt = ProgressTracker(args.checkpoint_prefix, evaluate_fn=evaluate)
+    pt = ProgressTracker(
+        args.checkpoint_prefix,
+        evaluate_fn=evaluate,
+        last_epoch_only=True,
+        save_latest=False
+    )
     losses = []
     for epoch in range(args.n_epochs):
         with tqdm.tqdm(total=len(args.train_loader)) as pbar:
@@ -79,6 +84,7 @@ def train(args: TrainingArguments):
                 spacy_feats = spacy_feats.to(get_device())
                 labels = labels.to(get_device())
                 out = args.model(spacy_feats)
+                out = out.reshape(-1)
                 loss = args.criterion(out, labels)
                 loss.backward()
                 args.optimizer.step()
@@ -135,7 +141,7 @@ def entry(args: Namespace):
         n_epochs=arg("n_epochs"),
         save_every=arg("save_every"),
         checkpoint_prefix=arg("checkpoint_prefix"),
-        criterion=torch.nn.NLLLoss()
+        criterion=torch.nn.BCELoss()
     )
 
     if arg("train"):

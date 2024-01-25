@@ -5,7 +5,7 @@ cd src
 python3 script.py train_lang_mlp \
     --lang-mlp-train \
     --lang-mlp-hidden-size 128 \
-    --lang-mlp-dropout 0.2 \
+    --lang-mlp-dropout 0.3 \
     --lang-mlp-spacy-n-feats 69 \
     --lang-mlp-spacy-train-feats /Users/aron/cicl/taskA/data/spacy/daniel_feats_train_mapped.jsonl \
     --lang-mlp-spacy-dev-feats /Users/aron/cicl/taskA/data/spacy/daniel_feats_dev_mapped.jsonl \
