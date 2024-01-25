@@ -16,8 +16,11 @@ class ProgressTracker:
             pass
     
     def _save(self, model, path, extra):
-        _model = model.module if hasattr(model, "module") else model
-        _model.save(path, extra)
+        try:
+            _model = model.module if hasattr(model, "module") else model
+            _model.save(path, extra)
+        except:
+            print("Failed to save model")
 
     def for_steps(self, model, dev_loader):
         best_path = f"{self.basedir}/best.pt"

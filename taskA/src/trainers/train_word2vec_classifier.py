@@ -1,7 +1,5 @@
 from argparse import Namespace
 from dataclasses import dataclass
-import pickle
-import token
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 
 
@@ -10,7 +8,7 @@ from tqdm import tqdm
 from models.word2vec import Word2VecClassifier, Word2VecTokenizer
 
 from util.checkpoints import ProgressTracker
-from loader.data import TaskA_Dataset, collate_fn
+from loader.data import TaskA_Dataset
 from util.device import get_device
 
 
@@ -25,16 +23,18 @@ def add_args(parser):
     group.add_argument(p("n-epochs"), type=int, default=10)
     group.add_argument(p("start-epoch"), type=int, default=1)
     group.add_argument(p("save-every"), type=int, default=1)
-    group.add_argument(p("do-train"), default=True, action="store_true")
+    group.add_argument(p("do-train"), default=False, action="store_true")
     group.add_argument(p("checkpoint-prefix"),
                        type=str, default="word2vec-classifier")
     group.add_argument(p("max-len"), type=int, default=15_000)
     group.add_argument(p("load-model"), type=str, default=None)
 
     group.add_argument(p("emb-size"), type=int, default=500)
-    group.add_argument(p("tokenizer-extend"), default=False, action="store_true")
+    group.add_argument(p("tokenizer-extend"),
+                       default=False, action="store_true")
     group.add_argument(p("tokenizer-txt-path"), type=str, default=None)
-    group.add_argument(p("tokenizer-save-path-weights"), type=str, default=None)
+    group.add_argument(p("tokenizer-save-path-weights"),
+                       type=str, default=None)
     group.add_argument(p("tokenizer-save-path-vocab"), type=str, default=None)
     group.add_argument(p("tokenizer-pkl-path-vocab"), type=str, default=None)
     group.add_argument(p("tokenizer-pkl-path-weights"), type=str, default=None)
@@ -45,9 +45,9 @@ def evaluate(model: Word2VecClassifier, dev_loader: torch.utils.data.DataLoader,
     y_gold = []
     model.eval()
     with torch.no_grad():
-        for input_ids, attentions, labels in dev_loader:
-            out = model(input_ids)
-            pred = torch.argmax(out, dim=1)
+        for input_ids, labels, attentions in dev_loader:
+            out, _ = model(input_ids, attentions)
+            pred = torch.round(out)
             for i in range(pred.shape[0]):
                 y_pred.append(pred[i].item())
                 y_gold.append(labels[i].item())
@@ -78,99 +78,115 @@ class TrainingArgumets:
 
 
 def train_classifier(args: TrainingArgumets):
-    cp = ProgressTracker(args.checkpoint_prefix, evaluate_fn=evaluate)
+    cp = ProgressTracker(
+        args.checkpoint_prefix,
+        evaluate_fn=evaluate,
+        last_epoch_only=True,
+        save_latest=False
+    )
     i = 0
+    losses = []
     args.model.train()
-    
+
     for epoch in range(args.start_epoch, args.n_epochs + 1):
         with tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
-            for input_ids, attentions, labels in args.train_loader:
+            for input_ids, labels, attentions in args.train_loader:
                 labels: torch.Tensor = labels.to(get_device())
                 args.optimizer.zero_grad()
-                try:
-                    out = args.model(input_ids)
-                except:
-                    print(input_ids)
-                    raise
+                out, _ = args.model(input_ids, attentions)
+                out = out.reshape(-1)
+
                 loss = args.criterion(out, labels)
                 
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(args.model.parameters(), 1.0)
                 args.optimizer.step()
+                losses.append(loss.item())
                 
+
                 pbar.update(1)
                 i += 1
 
                 if i % args.save_every == 0 and i != 0:
                     best, latest = cp.for_steps(args.model, args.dev_loader)
+                    l = sum(losses) / len(losses)
+                    losses = []
                     args.model.train()
                     pbar.set_postfix({
                         "best": best,
-                        "latest": latest
+                        "latest": latest,
+                        "loss": l
                     })
             cp.for_epoch(args.model, args.optimizer, epoch, args.dev_loader)
             args.model.train()
-                
+
 
 def entry(args: Namespace):
+    def arg(cmd):
+        p = f"word2vec_classifier_{cmd.replace('-', '_')}"
+        return args.__getattribute__(p)
 
-    ds = TaskA_Dataset(split="train")
-    if args.word2vec_classifier_tokenizer_pkl_path_vocab:
-        tokenizer = Word2VecTokenizer.from_pkl(
-            args.word2vec_classifier_tokenizer_pkl_path_vocab)
-    else:
-        tokenizer = Word2VecTokenizer.from_txt(
-            args.word2vec_classifier_tokenizer_txt_path, emb_size=args.word2vec_classifier_emb_size)
-        tokenizer.purge()
-
-        if args.word2vec_classifier_tokenizer_extend:
-            tokenizer.extend((i[0] for i in ds), emb_size=args.word2vec_classifier_emb_size)
-            tokenizer.purge()
-
-        if args.word2vec_classifier_tokenizer_save_path_vocab and args.word2vec_classifier_tokenizer_save_path_weights:
-            tokenizer.save(
-                weights_path=args.word2vec_classifier_tokenizer_save_path_weights,
-                vocab_path=args.word2vec_classifier_tokenizer_save_path_vocab
-            )
-
-    if args.word2vec_classifier_load_model:
-        model = Word2VecClassifier.from_pretrained(
-            args.word2vec_classifier_load_model)
-    else:
-        weights = torch.tensor(tokenizer.weights, dtype=torch.float32) if tokenizer.weights is not None else None
-        if weights is None:
-            with open(args.word2vec_classifier_tokenizer_pkl_path_weights, "rb") as f:
-                weights = pickle.load(f)
-                weights = torch.tensor(weights, dtype=torch.float32)
-        model = Word2VecClassifier(
-            dropout=args.word2vec_classifier_dropout,
-            hidden_size=args.word2vec_classifier_hidden_size,
-            num_layers=args.word2vec_classifier_num_layers,
-            pretrained_embeddings=weights
+    weights = None
+    if arg("tokenizer-pkl-path-vocab"):
+        tokenizer = Word2VecTokenizer.from_pretrained(
+            arg("tokenizer-pkl-path-vocab"),
+            max_len=arg("max-len")
         )
-    
-    print(model)
-    model = torch.nn.DataParallel(model)
-        
+        if arg("load-model") is None and arg("tokenizer-pkl-path-weights"):
+            weights = torch.load(arg("tokenizer-pkl-path-weights"))
+        elif arg("load-model") is not None and arg("tokenizer-pkl-path-weights") is None:
+            raise ValueError("Cannot load model without weights")
+    elif arg("tokenizer-txt-path"):
+        tokenizer, weights = Word2VecTokenizer.from_txt(
+            arg("tokenizer-txt-path"),
+            arg("emb-size"),
+            max_len=arg("max-len")
+        )
+        if arg("tokenizer-save-path-vocab"):
+            tokenizer.save(arg("tokenizer-save-path-vocab"))
+        if arg("tokenizer-save-path-weights"):
+            torch.save(weights, arg("tokenizer-save-path-weights"))
+    else:
+        raise ValueError("No tokenizer specified")
 
-    if args.word2vec_classifier_do_train:
-        optimizer = torch.optim.AdamW(
-            model.parameters(), lr=args.word2vec_classifier_lr)
+    if arg("load-model"):
+        model, checkpoint = Word2VecClassifier.from_pretrained(
+            arg("load-model"))
+        optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
+        if "optimizer" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            print("Loaded optimizer state dict")
+    else:
+        if weights is None:
+            raise ValueError("No weights specified")
+        model = Word2VecClassifier(
+            pretrained_embeddings=weights,
+            dropout=arg("dropout"),
+            emb_size=arg("emb-size"),
+            hidden_size=arg("hidden-size"),
+            num_layers=arg("num-layers")
+        )
+        model.to_device()
+        optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
+
+    print(model)
+
+    if arg("do-train"):
+        ds = TaskA_Dataset(split="train")
         train_loader = torch.utils.data.DataLoader(
-            ds, 
-            batch_size=args.word2vec_classifier_batch_size, 
-            shuffle=True, 
-            drop_last=True,
-            collate_fn=collate_fn(tokenizer, args.word2vec_classifier_max_len, device=torch.device("cpu"))
+            ds,
+            batch_size=args.word2vec_classifier_batch_size,
+            shuffle=True,
+            collate_fn=Word2VecTokenizer.collate_fn(tokenizer)
         )
         dev_loader = torch.utils.data.DataLoader(
             TaskA_Dataset(split="dev"),
-            batch_size=args.word2vec_classifier_batch_size, 
-            shuffle=True, 
-            drop_last=True,
-            collate_fn=collate_fn(tokenizer, args.word2vec_classifier_max_len, device=torch.device("cpu"))
+            batch_size=args.word2vec_classifier_batch_size,
+            shuffle=True,
+            collate_fn=Word2VecTokenizer.collate_fn(tokenizer)
         )
-        criterion = torch.nn.NLLLoss()
+        criterion = torch.nn.BCELoss()
         arguments = TrainingArgumets(
             checkpoint_prefix=args.word2vec_classifier_checkpoint_prefix,
             clip=None,
