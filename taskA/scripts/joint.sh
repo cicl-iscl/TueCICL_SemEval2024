@@ -12,7 +12,7 @@ python3 script.py train_joint_model \
     --joint-model-w2v-max-len 1000 \
     --joint-model-hidden-size 128 \
     --joint-model-dropout 0.2 \
-    --joint-model-batch-size 12 \
+    --joint-model-batch-size 8 \
     --joint-model-n-epochs 100 \
     --joint-model-save-every 2000 \
     --joint-model-checkpoint-prefix joint-model-test \
