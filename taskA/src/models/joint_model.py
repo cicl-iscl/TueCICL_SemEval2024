@@ -109,6 +109,6 @@ class JointModelPreprocessor:
             label = [i[1] for i in batch]
             input_ids = tokenizer.prepare(text)
             labels_tensor = torch.tensor(
-                label, dtype=torch.long)
+                label, dtype=torch.float32)
             return input_ids, labels_tensor
         return collate
