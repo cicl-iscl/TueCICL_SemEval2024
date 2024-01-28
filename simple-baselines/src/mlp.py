@@ -12,9 +12,11 @@ class Model(nn.Module):
     def __init__(self, n_input_features, n_output_features):
         super(Model, self).__init__()
         self.mlp = nn.Sequential(
-            nn.Linear(n_input_features, 128),
-            nn.ReLU(),
-            nn.Linear(128, n_output_features)
+            nn.Linear(n_input_features, 256),
+            nn.Tanh(),
+            nn.Linear(256, 256),
+            nn.Tanh(),
+            nn.Linear(256, n_output_features)
         )
 
     def forward(self, x):
@@ -28,7 +30,7 @@ class TaskA_Dataset(torch.utils.data.Dataset):
     def __init__(self, split="train") -> None:
         if split == "train":
             self.data = pd.read_json("../../data/subtaskA_spacy_feats.json")
-            # self.data = self.data.sample(frac=1).reset_index(drop=True)
+            self.data = self.data.sample(frac=1).reset_index(drop=True)
             self.data.drop(["passed_quality_check", "oov_ratio", "n_characters", "n_sentences"], inplace=True, axis=1)
             self.data.dropna(inplace=True)
             self.feats = np.array(self.data.drop(["label", "id", "text"], axis=1).values)
@@ -94,6 +96,8 @@ Y_train = Y_train.to(device)
 X_test = X_test.to(device)
 Y_test = Y_test.to(device)
 
+
+
 epochs = 2000
 Loss = []
 acc = []
@@ -107,7 +111,7 @@ for epoch in tqdm(range(epochs)):
     loss.backward()
     optimizer.step()
     Loss.append(loss.item())
-    if (epoch+1) % 100 == 0:
+    if (epoch+1) % 10 == 0:
         print(f'epoch: {epoch+1}, loss = {loss.item():.4f}\n')
         print(f'number of ones: {len(outputs[outputs >= 0.5])}')
         with torch.no_grad():
@@ -119,4 +123,8 @@ for epoch in tqdm(range(epochs)):
             print(f"f_1_1 score: {f1}")
             if f1 > best_f1:
                 best_f1 = f1
-                torch.save(log_regr.state_dict(), '../../models/best_model.pth')
+                torch.save({
+                    "model_state_dict": log_regr.state_dict(),
+                    "epoch": epoch,
+                    "f1": f1
+                }, '../../models/best_model.pth')

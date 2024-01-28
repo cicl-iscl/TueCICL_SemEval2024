@@ -1,6 +1,7 @@
 import pandas as pd
 import torch
 import torch.nn as nn
+from sklearn.linear_model import LogisticRegression
 from torch.utils.data import DataLoader
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -84,20 +85,33 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 epochs = 10000
 Loss = []
 acc = []
-for epoch in tqdm(range(epochs)):
-    optimizer.zero_grad()
-    outputs = log_regr(X_train).squeeze()
-    x = 0
-    loss = criterion(outputs, Y_train)
-    loss.backward()
-    optimizer.step()
-    Loss.append(loss.item())
-    if (epoch+1) % 10 == 0:
-        print(f'epoch: {epoch+1}, loss = {loss.item():.4f}\n')
-        print(f'number of ones: {len(outputs[outputs >= 0.5])}')
-        with torch.no_grad():
-            y_predicted = log_regr(X_test).squeeze()
-            y_predicted_cls = y_predicted.round()
-            print(len(y_predicted[y_predicted == 1]))
-            f1_1 = f1_score(Y_test, y_predicted_cls)
-            print(f"f_1_1 score: {f1_1}")
+# for epoch in tqdm(range(epochs)):
+#     optimizer.zero_grad()
+#     outputs = log_regr(X_train).squeeze()
+#     x = 0
+#     loss = criterion(outputs, Y_train)
+#     loss.backward()
+#     optimizer.step()
+#     Loss.append(loss.item())
+#     if (epoch+1) % 10 == 0:
+#         print(f'epoch: {epoch+1}, loss = {loss.item():.4f}\n')
+#         print(f'number of ones: {len(outputs[outputs >= 0.5])}')
+#         with torch.no_grad():
+#             y_predicted = log_regr(X_test).squeeze()
+#             y_predicted_cls = y_predicted.round()
+#             print(len(y_predicted[y_predicted == 1]))
+#             f1_1 = f1_score(Y_test, y_predicted_cls)
+#             print(f"f_1_1 score: {f1_1}")
+
+
+# sklearn
+clf = LogisticRegression(max_iter=100000)
+clf.fit(X_train, Y_train)
+
+pred = clf.predict(X_test)
+
+count = pred[pred == 1]
+print(len(count))
+
+f1_1 = f1_score(Y_test, pred)
+print(f"f_1_1 score: {f1_1}")
