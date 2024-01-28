@@ -6,9 +6,9 @@ from transformers import AutoModel, AutoTokenizer
 class UAR:
     def __init__(self) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained(
-            "rrivera1849/LUAR-CRUD", trust_remote_code=True)
+            "rrivera1849/LUAR-MUD", trust_remote_code=True)
         self.model = AutoModel.from_pretrained(
-            "rrivera1849/LUAR-CRUD", trust_remote_code=True)
+            "rrivera1849/LUAR-MUD", trust_remote_code=True)
 
     def _get(self, text: str):
         text = [
