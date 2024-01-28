@@ -8,7 +8,7 @@ class UAR:
         self.tokenizer = AutoTokenizer.from_pretrained(
             "rrivera1849/LUAR-MUD", trust_remote_code=True)
         self.model = AutoModel.from_pretrained(
-            "rrivera1849/LUAR-MUD")
+            "rrivera1849/LUAR-MUD", trust_remote_code=True)
 
     def _get(self, text: str):
         text = [
