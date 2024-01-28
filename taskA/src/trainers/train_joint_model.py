@@ -45,11 +45,10 @@ def evaluate(model, dev_loader, f1_only=True):
     y_pred = []
     y_gold = []
     with torch.no_grad():
-        for cc, w2v, uar, labels in dev_loader:
+        for cc, w2v, labels in dev_loader:
             cc = cc.to(get_device())
             w2v = w2v.to(get_device())
-            uar = uar.to(get_device())
-            out = model(cc, w2v, uar)
+            out = model(cc, w2v)
             pred = out.round()
             for i in range(out.shape[0]):
                 y_pred.append(pred[i].item())
@@ -86,13 +85,12 @@ def train(args: TrainingArguments):
         with tqdm.tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
             args.model.train()
-            for cc, w2v, uar, labels in args.train_loader:
+            for cc, w2v, labels in args.train_loader:
                 args.optimizer.zero_grad()
                 cc = cc.to(get_device())
                 w2v = w2v.to(get_device())
-                uar = uar.to(get_device())
                 labels = labels.to(get_device())
-                out = args.model(cc, w2v, uar)
+                out = args.model(cc, w2v)
                 out = out.squeeze()
                 loss = args.criterion(out, labels)
                 loss.backward()

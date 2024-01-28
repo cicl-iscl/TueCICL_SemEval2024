@@ -19,16 +19,13 @@ class JointModel(nn.Module):
         super().__init__()
         self.cc_size = cc_size
         self.w2v_size = w2v_size
-        self.uar_size = uar_size
-        self.input_size = cc_size + w2v_size + uar_size
+        self.input_size = cc_size + w2v_size
         self.hidden_size = hidden_size
         self.dropout = dropout
 
         self.cc_weight = nn.Parameter(torch.tensor(
             1.0, requires_grad=True, dtype=torch.float32))
         self.w2v_weight = nn.Parameter(torch.tensor(
-            1.0, requires_grad=True, dtype=torch.float32))
-        self.uar_weight = nn.Parameter(torch.tensor(
             1.0, requires_grad=True, dtype=torch.float32))
 
         self.mlp = nn.Sequential(
@@ -45,11 +42,10 @@ class JointModel(nn.Module):
     def to_device(self):
         self.mlp.to(get_device())
 
-    def forward(self, X_cc, X_w2v, X_uar):
+    def forward(self, X_cc, X_w2v):
         cc_out = X_cc * self.cc_weight
         w2v_out = X_w2v * self.w2v_weight
-        uar_out = X_uar * self.uar_weight
-        X = torch.cat([cc_out, w2v_out, uar_out], dim=1)
+        X = torch.cat([cc_out, w2v_out], dim=1)
         return self.mlp(X)
 
     def save(self, path, extra={}):
@@ -57,7 +53,6 @@ class JointModel(nn.Module):
             "state_dict": self.state_dict(),
             "cc_size": self.cc_size,
             "w2v_size": self.w2v_size,
-            "uar_size": self.uar_size,
             "input_size": self.input_size,
             "hidden_size": self.hidden_size,
             "dropout": self.dropout,
@@ -89,9 +84,7 @@ class JointModelPreprocessor:
         w2v_tokenizer_path=None,
         cc_max_len=5000,
         w2v_max_len=1000,
-        uar=None
     ):
-        self.uar: UAR = uar
 
         self.cc_max_len = cc_max_len
         self.w2v_max_len = w2v_max_len
@@ -125,8 +118,7 @@ class JointModelPreprocessor:
             cc_out = cc_out[:, -1, :]
             _, _, w2v_out = self.w2v_classifier(
                 w2v_X, w2v_attention, return_last_hidden=True)
-            uar_out = self.uar.get(texts)
-            return cc_out, w2v_out, uar_out
+            return cc_out, w2v_out
 
     @staticmethod
     def collate_fn(tokenizer):
