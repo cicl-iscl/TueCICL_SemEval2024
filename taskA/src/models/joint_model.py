@@ -124,8 +124,8 @@ class JointModelPreprocessor:
         def collate(batch):
             text = [i[0] for i in batch]
             label = [i[1] for i in batch]
-            cc_out, w2v_out, uar_out = tokenizer.prepare(text)
+            cc_out, w2v_out = tokenizer.prepare(text)
             labels_tensor = torch.tensor(
                 label, dtype=torch.float32)
-            return cc_out, w2v_out, uar_out, labels_tensor
+            return cc_out, w2v_out, labels_tensor
         return collate
