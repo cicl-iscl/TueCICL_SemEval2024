@@ -106,7 +106,6 @@ class JointModelPreprocessor:
         print("Preprocessor models:")
         print(self.cc_classifier)
         print(self.w2v_classifier)
-        print(self.uar)
         print("------------------\n")
 
     def prepare(self, texts):
