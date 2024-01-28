@@ -92,12 +92,14 @@ class JointModelPreprocessor:
             cc_tokenizer_path)
         self.cc_classifier = CharClassifier.from_pretrained(cc_model_path)
         self.cc_classifier.to_device()
+        self.cc_classifier.eval()
 
         self.w2v_tokenizer = Word2VecTokenizer.from_pretrained(
             w2v_tokenizer_path, max_len=w2v_max_len)
         self.w2v_classifier, _ = Word2VecClassifier.from_pretrained(
             w2v_model_path)
         self.w2v_classifier.to_device()
+        self.w2v_classifier.eval()
 
         self.input_size = self.cc_classifier.hidden_size + \
             self.w2v_classifier.hidden_size
