@@ -4,13 +4,16 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
+
 class DS(torch.utils.data.Dataset):
     def __init__(self, dev=False):
         if dev:
-            self.data = pd.read_json('~/cicl/taskA/data/subtaskA_dev_monolingual.jsonl', lines=True)
+            self.data = pd.read_json(
+                '~/cicl/taskA/data/subtaskA_dev_monolingual.jsonl', lines=True)
         else:
-            self.data = pd.read_json('~/cicl/taskA/data/subtaskA_train_monolingual.jsonl', lines=True)
-    
+            self.data = pd.read_json(
+                '~/cicl/taskA/data/subtaskA_train_monolingual.jsonl', lines=True)
+
     def __len__(self):
         return len(self.data)
 
@@ -18,7 +21,6 @@ class DS(torch.utils.data.Dataset):
         item = self.data.iloc[index]
         text, id = item["text"], item["id"]
         return id, text
-    
 
 
 def entry(args):
@@ -38,9 +40,11 @@ def entry(args):
             vec.pop('passed_quality_check')
             vec.pop('oov_ratio')
             vec.pop('n_characters')
-            
-            vec = [vec[k] for k in vec]
-            
+
+            sorted_keys = sorted(vec.keys())
+
+            vec = [vec[k] for k in sorted_keys]
+
             r = {
                 "vector": vec,
                 "id": _id
