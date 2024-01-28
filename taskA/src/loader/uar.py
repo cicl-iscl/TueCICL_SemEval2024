@@ -35,3 +35,6 @@ class UAR:
     def get(self, texts: List[str]):
         tensors = [self._get(text) for text in texts]
         return torch.stack(tensors, dim=0)
+
+    def __str__(self):
+        return self.model.__str__()
