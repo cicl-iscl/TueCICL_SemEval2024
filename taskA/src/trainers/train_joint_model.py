@@ -115,7 +115,6 @@ def entry(args: Namespace):
     def arg(name):
         return getattr(args, "joint_model_" + name.replace("-", "_"))
 
-    uar = UAR()
     preprocessor = JointModelPreprocessor(
         cc_model_path=arg("cc_model_path"),
         cc_tokenizer_path=arg("cc_tokenizer_path"),
@@ -123,7 +122,6 @@ def entry(args: Namespace):
         w2v_model_path=arg("w2v_model_path"),
         w2v_tokenizer_path=arg("w2v_tokenizer_path"),
         w2v_max_len=arg("w2v-max-len"),
-        uar=uar
     )
 
     if arg("load-model"):
