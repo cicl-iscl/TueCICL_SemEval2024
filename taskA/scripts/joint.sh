@@ -10,7 +10,7 @@ python3 script.py train_joint_model \
     --joint-model-w2v-tokenizer-path ~/cicl/taskA/data/vocab/wiki2vec_vocab_500.pkl \
     --joint-model-cc-max-len 15000 \
     --joint-model-w2v-max-len 1000 \
-    --joint-model-hidden-size 256 \
+    --joint-model-hidden-size 512 \
     --joint-model-dropout 0.2 \
     --joint-model-batch-size 8 \
     --joint-model-n-epochs 100 \
