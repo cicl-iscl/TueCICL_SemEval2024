@@ -6,6 +6,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import tqdm
 from loader.data import TaskA_Dataset
+from loader.uar import UAR
 from models.joint_model import JointModel, JointModelPreprocessor
 from util.checkpoints import ProgressTracker
 
@@ -44,9 +45,11 @@ def evaluate(model, dev_loader, f1_only=True):
     y_pred = []
     y_gold = []
     with torch.no_grad():
-        for inputs, labels in dev_loader:
-            inputs = inputs.to(get_device())
-            out = model(inputs)
+        for cc, w2v, uar, labels in dev_loader:
+            cc = cc.to(get_device())
+            w2v = w2v.to(get_device())
+            uar = uar.to(get_device())
+            out = model(cc, w2v, uar)
             pred = out.round()
             for i in range(out.shape[0]):
                 y_pred.append(pred[i].item())
@@ -83,11 +86,13 @@ def train(args: TrainingArguments):
         with tqdm.tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
             args.model.train()
-            for input_ids, labels in args.train_loader:
+            for cc, w2v, uar, labels in args.train_loader:
                 args.optimizer.zero_grad()
-                input_ids = input_ids.to(get_device())
+                cc = cc.to(get_device())
+                w2v = w2v.to(get_device())
+                uar = uar.to(get_device())
                 labels = labels.to(get_device())
-                out = args.model(input_ids)
+                out = args.model(cc, w2v, uar)
                 out = out.squeeze()
                 loss = args.criterion(out, labels)
                 loss.backward()
@@ -112,13 +117,15 @@ def entry(args: Namespace):
     def arg(name):
         return getattr(args, "joint_model_" + name.replace("-", "_"))
 
+    uar = UAR()
     preprocessor = JointModelPreprocessor(
         cc_model_path=arg("cc_model_path"),
         cc_tokenizer_path=arg("cc_tokenizer_path"),
         cc_max_len=arg("cc-max-len"),
         w2v_model_path=arg("w2v_model_path"),
         w2v_tokenizer_path=arg("w2v_tokenizer_path"),
-        w2v_max_len=arg("w2v-max-len")
+        w2v_max_len=arg("w2v-max-len"),
+        uar=uar
     )
 
     if arg("load-model"):
@@ -128,7 +135,9 @@ def entry(args: Namespace):
             optimizer.load_state_dict(checkpoint["optimizer"])
     else:
         model = JointModel(
-            input_size=preprocessor.input_size,
+            cc_size=preprocessor.cc_classifier.hidden_size,
+            uar_size=512,
+            w2v_size=preprocessor.w2v_classifier.hidden_size,
             hidden_size=arg("hidden_size"),
             dropout=arg("dropout")
         )
