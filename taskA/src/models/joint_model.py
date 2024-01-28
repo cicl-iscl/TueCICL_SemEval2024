@@ -96,9 +96,10 @@ class JointModelPreprocessor:
         with torch.no_grad():
             cc_X, _ = self.cc_tokenizer.tokenize(
                 texts, max_len=self.cc_max_len)
-            w2v_X, _ = self.w2v_tokenizer.tokenize(texts)
-            cc_out = self.cc_classifier(cc_X)[1][:, -1, :]
-            w2v_out = self.w2v_classifier(w2v_X)[1][:, -1, :]
+            w2v_X, w2v_attention = self.w2v_tokenizer.tokenize(texts)
+            _, cc_out = self.cc_classifier(cc_X)
+            cc_out = cc_out[:, -1, :]
+            _, _, w2v_out = self.w2v_classifier(w2v_X, w2v_attention, return_last_hidden=True)
             joint_out = torch.cat([cc_out, w2v_out], dim=1)
             return joint_out
 

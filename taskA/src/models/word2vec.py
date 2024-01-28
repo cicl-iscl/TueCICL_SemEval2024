@@ -61,7 +61,7 @@ class Word2VecClassifier(nn.Module):
 
         return vecs
 
-    def forward(self, x, attention):
+    def forward(self, x, attention, return_last_hidden=False):
         x: torch.Tensor = self.emb(x)
         x = x.to(get_device())
         self.lstm.flatten_parameters()
@@ -69,6 +69,9 @@ class Word2VecClassifier(nn.Module):
         last = self._last_with_attention(lstm_out, attention)
         pred_class = self.lstm2class(last)
         pred_class = F.sigmoid(pred_class)
+        
+        if return_last_hidden:
+            return pred_class, lstm_out, last
 
         return pred_class, lstm_out
 
