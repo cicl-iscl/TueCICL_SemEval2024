@@ -4,7 +4,7 @@ import torch
 
 
 class ProgressTracker:
-    def __init__(self, prefix, evaluate_fn) -> None:
+    def __init__(self, prefix, evaluate_fn, save_latest=False, last_epoch_only=True) -> None:
         self.progress = {}
         self.prefix = prefix
         self.evaluate_fn = evaluate_fn
@@ -38,7 +38,8 @@ class ProgressTracker:
         if is_best:
             self.progress["best"] = metric
             self._save(model, best_path, extra)
-        self._save(model, f"{self.basedir}/latest.pt", extra)
+        if self.save_latest:
+            self._save(model, f"{self.basedir}/latest.pt", extra)
         return self.progress["best"], metric
 
     def for_epoch(self, model, optimizer, epoch, dev_loader):
@@ -48,5 +49,8 @@ class ProgressTracker:
             "epoch": epoch,
             "metric": metric
         }
-        fname = f"{self.basedir}/epoch_{epoch}.pt"
+        if self.save_latest:
+            fname = f"{self.basedir}/epoch_{epoch}.pt"
+        else:
+            fname = f"{self.basedir}/last_epoch.pt"
         self._save(model, fname, extra)
