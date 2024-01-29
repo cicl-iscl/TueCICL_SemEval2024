@@ -9,10 +9,10 @@ class DS(torch.utils.data.Dataset):
     def __init__(self, dev=False):
         if dev:
             self.data = pd.read_json(
-                '~/cicl/taskA/data/subtaskA_dev_monolingual.jsonl', lines=True)
+                '~/cicl/taskA/data/task_files/subtaskA_dev_monolingual.jsonl', lines=True)
         else:
             self.data = pd.read_json(
-                '~/cicl/taskA/data/subtaskA_train_monolingual.jsonl', lines=True)
+                '~/cicl/taskA/data/task_files/subtaskA_train_monolingual.jsonl', lines=True)
 
     def __len__(self):
         return len(self.data)
@@ -24,7 +24,8 @@ class DS(torch.utils.data.Dataset):
 
 
 def entry(args):
-    ds = DS(dev=False)
+    dev = True
+    ds = DS(dev=dev)
     dl = torch.utils.data.DataLoader(ds, batch_size=32, shuffle=False)
     nlp = spacy.load('en_core_web_sm')
     nlp.add_pipe('textdescriptives/all')
@@ -50,7 +51,7 @@ def entry(args):
                 "id": _id
             }
             result.append(r)
-    out_path = '~/cicl/taskA/data/subtaskA_train_spacy_feats_sm.jsonl'
+    out_path = '~/cicl/taskA/data/spacy/spacy_feats_sm_train.jsonl' if not dev else '~/cicl/taskA/data/spacy/spacy_feats_sm_dev.jsonl'
     pd.DataFrame(result).to_json(out_path, lines=True, orient='records')
 
 # docs = nlp.pipe(train_df.text)
