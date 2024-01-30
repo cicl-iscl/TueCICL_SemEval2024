@@ -13,7 +13,13 @@ class TaskC_Data(Dataset):
         self.data = self.load_data()
 
     def load_data(self):
-        f = "../data/subtaskC_train.jsonl" if self.split == "train" else "../data/subtaskC_dev.jsonl"
+        if self.split == "train":
+            f = "../data/subtaskC_train.jsonl"
+        elif self.split == "dev":
+            f = "../data/subtaskC_dev.jsonl"
+        elif self.split == "test":
+            f = "../data/subtaskC_test.jsonl"
+        
         data = []
 
         with open(f, "r", encoding="utf-8") as f:
@@ -42,7 +48,10 @@ class TaskC_Data(Dataset):
 
     def __getitem__(self, idx):
         item = self.data[idx]
-        return item["text"], item["label"]
+        if self.split == "test":
+            return item["text"], item["id"]
+        else:
+            return item["text"], item["label"]
 
 
 def collate_fn_wordlevel(tokenizer):

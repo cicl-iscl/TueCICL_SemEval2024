@@ -1,5 +1,6 @@
 from argparse import Namespace
 from dataclasses import dataclass
+import pandas as pd
 
 import torch
 from tqdm import tqdm
@@ -33,6 +34,7 @@ def add_args(parser):
         ("batch-size", int, 8),
         ("hidden-size", int, 2),
         ("dropout", float, 0.2),
+        ("predict", str, None),
     ]
 
     for arg in args:
@@ -40,6 +42,28 @@ def add_args(parser):
 
     group.add_argument(p("train"), action="store_true", default=False)
 
+def predict(model, test_loader, out_file):
+    model.eval()
+    predictions = []
+    
+    def _true_label(labels):
+        l = labels.cpu().tolist()
+        _i = None
+        if 1 in l:
+            _i = l.index(1)
+        else:
+            _i = len(l) - 1
+        return _i
+    
+    for x_char, x_w2v, _, ids in tqdm(test_loader, desc="Predicting"):
+        with torch.no_grad():
+            out = model(x_char, x_w2v)
+            preds = torch.argmax(out, dim=-1)
+            for i in range(len(preds)):
+                p = _true_label(preds[i])
+                predictions.append({"id": ids[i], "pred": p})
+    
+    pd.DataFrame(predictions).to_json(out_file, orient="records", lines=True)
 
 def evaluate(_model, dev_loader):
     _model.eval()
@@ -216,3 +240,15 @@ def entry(args: Namespace):
     
     if arg("train"):
         train(training_arguments)
+    
+    if arg("predict"):
+        MAD = evaluate(model, dev_dl)
+        print("MAD:", MAD)
+        test_ds = TaskC_Data(split="test")
+        test_dl = DataLoader(
+            test_ds,
+            batch_size=arg("batch-size"),
+            shuffle=False,
+            collate_fn=JointModelPreprocessor.collate_fn(preprocessor, is_test=True)
+        )
+        predict(model, test_dl, arg("predict"))

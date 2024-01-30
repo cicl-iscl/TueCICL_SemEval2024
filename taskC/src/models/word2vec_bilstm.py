@@ -235,8 +235,16 @@ class Word2VecTokenizer:
         return cls(word2idx, idx2word, max_len=max_len)
 
     @staticmethod
-    def collate_fn(tokenizer, check_label_mismatch=False):
+    def collate_fn(tokenizer, check_label_mismatch=False, is_test=False):
         def collate_batch(batch):
+            if is_test:
+                texts = [x[0] for x in batch]
+                text_ids = [x[1] for x in batch]
+                true_labels = [0 for _ in batch]
+                input_ids, _, words, attentions = tokenizer.tokenize(
+                    texts, true_labels)
+                return input_ids, words, attentions, text_ids
+            
             texts = [x[0] for x in batch]
             true_labels = [x[1] for x in batch]
             input_ids, labels, words, attentions = tokenizer.tokenize(

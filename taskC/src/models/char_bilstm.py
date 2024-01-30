@@ -171,12 +171,20 @@ class CharBiLSTMTokenizer:
         return [self.idx2word[_id] for _id in ids]
 
     @staticmethod
-    def collate_fn(tokenizer):
+    def collate_fn(tokenizer, is_test=False):
         def collate_batch(batch):
-            texts = [x[0] for x in batch]
-            _labels = [x[1] for x in batch]
-            input_ids, labels, words, attentions = tokenizer.tokenize(
-                texts, _labels)
+            if is_test:
+                texts = [x[0] for x in batch]
+                text_ids = [x[1] for x in batch]
+                true_labels = [0 for _ in batch]
+                input_ids, labels, words, attentions = tokenizer.tokenize(
+                    texts, true_labels)
+                return input_ids, words, attentions, text_ids
+            else:
+                texts = [x[0] for x in batch]
+                _labels = [x[1] for x in batch]
+                input_ids, labels, words, attentions = tokenizer.tokenize(
+                    texts, _labels)
 
             return input_ids, labels, words, attentions
 

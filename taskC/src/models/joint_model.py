@@ -203,12 +203,19 @@ class JointModelPreprocessor:
             return char_vectors, word2vec_vectors, labels, attentions
     
     @staticmethod
-    def collate_fn(tokenizer):
+    def collate_fn(tokenizer, is_test=False):
         def collate(batch):
-            texts = [x[0] for x in batch]
-            true_labels = [x[1] for x in batch]
-            prepared = tokenizer.prepare(texts, true_labels)
-            return prepared
+            if is_test:
+                texts = [x[0] for x in batch]
+                text_ids = [x[1] for x in batch]
+                true_labels = [0 for _ in batch]
+                char_vectors, word2vec_vectors, _, attentions = tokenizer.prepare(texts, true_labels)
+                return char_vectors, word2vec_vectors, attentions, text_ids
+            else:
+                texts = [x[0] for x in batch]
+                true_labels = [x[1] for x in batch]
+                prepared = tokenizer.prepare(texts, true_labels)
+                return prepared
         return collate
         
         
