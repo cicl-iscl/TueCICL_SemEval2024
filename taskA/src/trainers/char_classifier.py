@@ -11,11 +11,12 @@ from util.checkpoints import ProgressTracker
 from util.core import abspath
 from util.device import get_device
 from torch.utils.data import DataLoader
+import pandas as pd
 
 
 def add_args(parser: ArgumentParser):
     group = parser.add_argument_group("CharClassifier")
-    group.add_argument("--char-class-do-train", type=bool, default=False)
+    group.add_argument("--char-class-do-train", action="store_true", default=False)
     group.add_argument("--char-class-load-model", type=str, default=None)
     group.add_argument("--char-class-emb-size", type=int, default=8)
     group.add_argument("--char-class-hidden-size", type=int, default=128)
@@ -35,6 +36,7 @@ def add_args(parser: ArgumentParser):
     group.add_argument("--char-class-tokenizer-max-len",
                        type=int, default=15_000)
     group.add_argument("--char-class-dropout", type=float, default=0.0)
+    group.add_argument("--char-class-predict", type=str, default=None)
 
 
 def evaluate(model, dev_dataloader, f1_only=True):
@@ -57,6 +59,20 @@ def evaluate(model, dev_dataloader, f1_only=True):
         return f1
 
     return f1, r
+
+def predict(model, test_loader, out_file):
+    model.eval()
+    predictions = []
+    with torch.no_grad():
+        for input_ids, _, text_ids in tqdm(test_loader, desc="Predicting"):
+            out, _ = model(input_ids)
+            pred = out.argmax(dim=1)
+            for i in range(pred.shape[0]):
+                predictions.append({"id": text_ids[i], "label": pred[i].item()})
+                
+                
+    pd.DataFrame(predictions).to_json(out_file, orient="records", lines=True)
+                
 
 
 @dataclass
@@ -104,14 +120,12 @@ def train_char_classifier(args: CharClassifierTrainingArguments):
 
 def entry(args):
     tokenizer_path = abspath(
-        __file__, f"../../data/charlm_vocab_{args.char_class_tokenizer_type}.pkl")
+        __file__, f"../../data/vocab/charlm_vocab_{args.char_class_tokenizer_type}.pkl")
 
     tokenizer = CharClassifierTokenizer.from_pretrained(tokenizer_path)
 
     if args.char_class_load_model is not None:
-        model = CharClassifier.from_pretrained(
-            abspath(__file__, f"../../checkpoints/{args.char_class_load_model}"),
-        )
+        model = CharClassifier.from_pretrained(args.char_class_load_model)
         print(model)
     else:
         model = CharClassifier(
@@ -129,8 +143,7 @@ def entry(args):
     start_epoch = args.char_class_start_epoch
     
     if args.char_class_do_train and args.char_class_load_model:
-        save_data = torch.load(abspath(
-            __file__, f"../../checkpoints/{args.char_class_load_model}"))
+        save_data = torch.load(args.char_class_load_model)
         if "optimizer" in save_data:
             print("Loading optimizer state from checkpoint")
             optimizer.load_state_dict(save_data["optimizer"])
@@ -168,3 +181,15 @@ def entry(args):
         )
 
         train_char_classifier(training_args)
+    
+    if args.char_class_predict is not None:
+        test_dataloader = DataLoader(
+            TaskA_Dataset(split="test"),
+            batch_size=args.char_class_batch_size,
+            shuffle=False,
+            collate_fn=collate_fn(
+                tokenizer, max_len=args.char_class_tokenizer_max_len, is_test=True),
+            drop_last=False
+        )
+        
+        predict(model, test_dataloader, args.char_class_predict)
