@@ -3,7 +3,6 @@ source env/bin/activate
 cd src
 
 python3 script.py train_joint_model \
-    --joint-model-train \
     --joint-model-cc-model-path ~/cicl/taskA/data/pretrained/cc.pt \
     --joint-model-cc-tokenizer-path ~/cicl/taskA/data/vocab/charlm_vocab_uncondensed.pkl \
     --joint-model-w2v-model-path ~/cicl/taskA/data/pretrained/word2vec.pt \
@@ -15,7 +14,9 @@ python3 script.py train_joint_model \
     --joint-model-batch-size 8 \
     --joint-model-n-epochs 100 \
     --joint-model-save-every 2000 \
-    --joint-model-checkpoint-prefix joint-model-test \
+    --joint-model-checkpoint-prefix none \
+    --joint-model-load-model ~/cicl/taskA/checkpoints/joint-model/best.pt \
+    --joint-model-predict ~/cicl/taskA/data/predictions/join-model.jsonl
 
 
 

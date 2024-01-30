@@ -1,5 +1,6 @@
 from argparse import Namespace
 from dataclasses import dataclass
+import pandas as pd
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 import torch
 import torch.nn as nn
@@ -17,7 +18,7 @@ def add_args(parser):
     def p(name): return "--joint-model-" + name
     group = parser.add_argument_group("Word2Vec Classifier")
     group.add_argument(p("train"), action="store_true", default=False)
-    group.add_argument(p("predict"), action="store_true", default=False)
+    group.add_argument(p("predict"), type=str, default=None)
 
     args = [
         ("cc-model-path", str, None),
@@ -39,6 +40,19 @@ def add_args(parser):
     for name, type, default_value in args:
         group.add_argument(p(name), type=type, default=default_value)
 
+def predict(model: JointModel, test_loader, out_file):
+    model.eval()
+    predictions = []
+    with torch.no_grad():
+        for cc, w2v, text_ids in tqdm.tqdm(test_loader, desc="Predicting"):
+            cc = cc.to(get_device())
+            w2v = w2v.to(get_device())
+            out = model(cc, w2v)
+            pred = torch.round(out)
+            for i in range(pred.shape[0]):
+                p = int(pred[i].item())
+                predictions.append({"id": text_ids[i], "label": p})
+    pd.DataFrame(predictions).to_json(out_file, orient="records", lines=True)
 
 def evaluate(model, dev_loader, f1_only=True):
     model.eval()
@@ -168,3 +182,20 @@ def entry(args: Namespace):
             criterion=torch.nn.BCELoss()
         )
         train(training_arguments)
+    
+    if arg("predict"):
+        dev_loader = DataLoader(
+            TaskA_Dataset(split="dev"),
+            batch_size=arg("batch_size"),
+            shuffle=False,
+            collate_fn=JointModelPreprocessor.collate_fn(preprocessor)
+        )
+        test_loader = DataLoader(
+            TaskA_Dataset(split="test"),
+            batch_size=arg("batch_size"),
+            shuffle=False,
+            collate_fn=JointModelPreprocessor.collate_fn(preprocessor, is_test=True)
+        )
+        _, report = evaluate(model, dev_loader, f1_only=False)
+        print(report)
+        predict(model, test_loader, arg("predict"))

@@ -12,7 +12,6 @@ class JointModel(nn.Module):
         self,
         cc_size=None,
         w2v_size=None,
-        uar_size=None,
         hidden_size=128,
         dropout=None
     ) -> None:
@@ -51,11 +50,11 @@ class JointModel(nn.Module):
     def save(self, path, extra={}):
         torch.save({
             "state_dict": self.state_dict(),
-            "cc_size": self.cc_size,
-            "w2v_size": self.w2v_size,
             "input_size": self.input_size,
             "hidden_size": self.hidden_size,
             "dropout": self.dropout,
+            "cc_size": self.cc_size,
+            "w2v_size": self.w2v_size,
             **extra
         }, path)
 
@@ -66,7 +65,8 @@ class JointModel(nn.Module):
     def from_pretrained(cls, path):
         checkpoint = torch.load(path, map_location=torch.device("cpu"))
         model = cls(
-            input_size=checkpoint["input_size"],
+            cc_size=checkpoint["cc_size"],
+            w2v_size=checkpoint["w2v_size"],
             hidden_size=checkpoint["hidden_size"],
             dropout=checkpoint["dropout"]
         )
@@ -122,12 +122,18 @@ class JointModelPreprocessor:
             return cc_out, w2v_out
 
     @staticmethod
-    def collate_fn(tokenizer):
+    def collate_fn(tokenizer, is_test=False):
         def collate(batch):
-            text = [i[0] for i in batch]
-            label = [i[1] for i in batch]
-            cc_out, w2v_out = tokenizer.prepare(text)
-            labels_tensor = torch.tensor(
-                label, dtype=torch.float32)
-            return cc_out, w2v_out, labels_tensor
+            if is_test:
+                text = [i[0] for i in batch]
+                text_id = [i[1] for i in batch]
+                cc_out, w2v_out = tokenizer.prepare(text)
+                return cc_out, w2v_out, text_id
+            else:
+                text = [i[0] for i in batch]
+                label = [i[1] for i in batch]
+                cc_out, w2v_out = tokenizer.prepare(text)
+                labels_tensor = torch.tensor(
+                    label, dtype=torch.float32)
+                return cc_out, w2v_out, labels_tensor
         return collate
