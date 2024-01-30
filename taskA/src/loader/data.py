@@ -15,9 +15,14 @@ class TaskA_Dataset(Dataset):
                 __file__, "../../data/task_files/subtaskA_train_monolingual.jsonl")
             self.data = pd.read_json(
                 p, lines=True)
-        else:
+        elif split == "dev":
             p = abspath(
                 __file__, "../../data/task_files/subtaskA_dev_monolingual.jsonl")
+            self.data = pd.read_json(
+                p, lines=True)
+        elif split == "test":
+            p = abspath(
+                __file__, "../../data/task_files/subtaskA_test_monolingual.jsonl")
             self.data = pd.read_json(
                 p, lines=True)
 
@@ -29,6 +34,11 @@ class TaskA_Dataset(Dataset):
 
     def __getitem__(self, index):
         item = self.data.iloc[index]
+        
+        if self.split == "test":
+            text, _id = item["text"], item["id"]
+            return text, _id
+        
         text, label, _id = item["text"], item["label"], item["id"]
         if self.return_spacy:
             spacy_feats = self.spacy_features.get(_id, self.split)
@@ -36,8 +46,15 @@ class TaskA_Dataset(Dataset):
         return text, label, _id
 
 
-def collate_fn(tokenizer, max_len=None, device=get_device()):
+def collate_fn(tokenizer, max_len=None, device=get_device(), is_test=False):
     def collate(batch):
+        if is_test:
+            texts = [text for text, _ in batch]
+            text_ids = [text_id for _, text_id in batch]
+            input_ids, attentions = tokenizer.tokenize(
+                texts, max_len=max_len, device=device)
+            return input_ids, attentions, text_ids
+        
         texts = [text for text, _, _ in batch]
         labels = [label for _, label, _ in batch]
         input_ids, attentions = tokenizer.tokenize(

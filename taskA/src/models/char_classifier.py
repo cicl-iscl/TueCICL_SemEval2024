@@ -103,7 +103,7 @@ class CharClassifierTokenizer:
     def map_char(self, char):
         return char
 
-    def tokenize(self, texts: List[str], max_len: int = None):
+    def tokenize(self, texts: List[str], max_len: int = None, device=get_device()):
         tokenized_texts = [[c for c in text.lower()] for text in texts]
         longest = max([len(text) for text in tokenized_texts])
         if max_len is not None and longest > max_len:
@@ -131,7 +131,7 @@ class CharClassifierTokenizer:
             input_ids.append(_ids)
             attentions.append(_attentions)
 
-        return torch.tensor(input_ids, device=get_device()), torch.tensor(attentions, device=get_device())
+        return torch.tensor(input_ids, device=device), torch.tensor(attentions, device=device)
 
     def save(self, path):
         pass

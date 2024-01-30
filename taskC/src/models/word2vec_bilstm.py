@@ -51,12 +51,16 @@ class Word2VecBiLSTM(nn.Module):
     def __str__(self):
         return f"Word2VecBiLSTM(vocab_size={self.vocab_size}, emb_size={self.emb_size}, hidden_size={self.hidden_size}, num_layers={self.num_layers})"
 
-    def forward(self, X):
+    def forward(self, X, return_hidden=False):
         embedded = self.emb(X)
         inputs = embedded.to(get_device())
         lstm_out, _ = self.lstm(inputs)
         out = self.lstm2out(lstm_out)
         out = F.log_softmax(out, dim=-1)
+        
+        if return_hidden:
+            return out, lstm_out
+        
         return out
 
     def save(self, path, extra={}):
@@ -183,6 +187,9 @@ class Word2VecTokenizer:
             torch.tensor(_words),
             torch.tensor(_attentions)
         )
+        
+    def decode(self, ids):
+        return [self.idx2word[x] for x in ids]
 
     def save(self, path):
         with open(path, "wb") as f:
@@ -228,8 +235,16 @@ class Word2VecTokenizer:
         return cls(word2idx, idx2word, max_len=max_len)
 
     @staticmethod
-    def collate_fn(tokenizer, check_label_mismatch=False):
+    def collate_fn(tokenizer, check_label_mismatch=False, is_test=False):
         def collate_batch(batch):
+            if is_test:
+                texts = [x[0] for x in batch]
+                text_ids = [x[1] for x in batch]
+                true_labels = [0 for _ in batch]
+                input_ids, _, words, attentions = tokenizer.tokenize(
+                    texts, true_labels)
+                return input_ids, words, attentions, text_ids
+            
             texts = [x[0] for x in batch]
             true_labels = [x[1] for x in batch]
             input_ids, labels, words, attentions = tokenizer.tokenize(

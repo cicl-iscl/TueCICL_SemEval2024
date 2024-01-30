@@ -4,7 +4,7 @@ cd src
 
 python3 script.py train_char_bilstm \
     --char-bilstm-tokenizer-path ~/cicl/taskC/data/charlm_vocab_uncondensed.pkl \
-    --char-bilstm-checkpoint-prefix char-bilstm-256-3-res2 \
+    --char-bilstm-checkpoint-prefix none \
     --char-bilstm-tokenizer-max-len 15000 \
     --char-bilstm-save-every-extended 1000 \
     --char-bilstm-save-every-pure 200 \
@@ -15,5 +15,5 @@ python3 script.py train_char_bilstm \
     --char-bilstm-num-layers 3 \
     --char-bilstm-dropout 0.2 \
     --char-bilstm-batch-size 8 \
-    --char-bilstm-train \
-    --char-bilstm-load-model ~/cicl/taskC/checkpoints/char-bilstm-256-3/epoch_2.pt \
+    --char-bilstm-predict ~/cicl/taskC/data/predictions/char.jsonl \
+    --char-bilstm-load-model ~/cicl/taskC/checkpoints/char-bilstm-256-3-res2-train2more/best.pt \

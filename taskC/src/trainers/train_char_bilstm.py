@@ -1,5 +1,6 @@
 from argparse import Namespace
 from dataclasses import dataclass
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -17,6 +18,7 @@ def add_args(parser):
     group.add_argument(p("tokenizer-max-len"), type=int, default=10000)
     group.add_argument(p("batch-size"), type=int, default=8)
     group.add_argument(p("train"), action="store_true", default=False)
+    group.add_argument(p("predict"), type=str, default=None)
     group.add_argument(p("epochs-extended"), type=int, default=10)
     group.add_argument(p("epochs-pure"), type=int, default=10)
     group.add_argument(p("lr"), type=float, default=1e-3)
@@ -29,6 +31,35 @@ def add_args(parser):
     group.add_argument(p("checkpoint-prefix"), type=str, default="char_bilstm")
     group.add_argument(p("load-model"), type=str, default="char_bilstm")
 
+
+def predict(model, test_loader, out_file):
+    model.eval()
+    predictions = []
+
+    def _true_label(labels, words):
+        l = labels.cpu().tolist()
+        _i = None
+        if 1 in l:
+            _i = l.index(1)
+        else:
+            _i = len(l) - 1
+        return words[_i].item()
+
+    for input_ids, words, _, text_ids in tqdm(test_loader, desc="Predicting"):
+        with torch.no_grad():
+            input_ids = input_ids.to(get_device())
+            out = model(input_ids)
+            preds = torch.argmax(out, dim=-1)
+            for i in range(len(preds)):
+                label = _true_label(preds[i], words[i])
+                predictions.append({
+                    "id": text_ids[i],
+                    "label": label,
+                })
+                
+    pd.DataFrame(predictions).to_json(out_file, orient="records", lines=True)
+
+    
 
 def evaluate(model: ChariBiLSTM, dev_loader):
     model.eval()
@@ -167,7 +198,7 @@ def entry(args: Namespace):
     )
 
     if arg("load-model") is not None:
-        model = ChariBiLSTM.from_pretrained(arg("load-model"))
+        model, _ = ChariBiLSTM.from_pretrained(arg("load-model"))
     else:
         model = ChariBiLSTM(
             emb_size=arg("emb-size"),
@@ -177,6 +208,7 @@ def entry(args: Namespace):
             vocab_size=len(tokenizer.idx2word)
         )
     print(model)
+    model.to_device()
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
 
@@ -195,4 +227,17 @@ def entry(args: Namespace):
         criterion=torch.nn.NLLLoss()
     )
 
-    train(training_arguments)
+    if arg("train"):
+        train(training_arguments)
+    
+    if arg("predict"):
+        MAD = evaluate(model, dev_dl)
+        print("MAD:", MAD)
+        test_ds = TaskC_Data(split="test")
+        test_dl = DataLoader(
+            test_ds,
+            batch_size=arg("batch-size"),
+            shuffle=False,
+            collate_fn=CharBiLSTMTokenizer.collate_fn(tokenizer, is_test=True)
+        )
+        predict(model, test_dl, arg("predict"))

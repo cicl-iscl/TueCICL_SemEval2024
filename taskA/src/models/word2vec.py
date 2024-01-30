@@ -231,13 +231,20 @@ class Word2VecTokenizer:
         return cls(word2idx, idx2word, max_len=max_len)
 
     @staticmethod
-    def collate_fn(tokenizer):
+    def collate_fn(tokenizer, is_test = False):
         def collate_batch(batch):
-            texts = [x[0] for x in batch]
-            labels = [x[1] for x in batch]
-            labels = torch.tensor(labels, dtype=torch.float32)
-            input_ids, attentions = tokenizer.tokenize(
-                texts)
-            return input_ids, labels, attentions
+            if is_test:
+                texts = [x[0] for x in batch]
+                text_ids = [x[1] for x in batch]
+                input_ids, attentions = tokenizer.tokenize(
+                    texts)
+                return input_ids, attentions, text_ids
+            else:
+                texts = [x[0] for x in batch]
+                labels = [x[1] for x in batch]
+                labels = torch.tensor(labels, dtype=torch.float32)
+                input_ids, attentions = tokenizer.tokenize(
+                    texts)
+                return input_ids, labels, attentions
 
         return collate_batch

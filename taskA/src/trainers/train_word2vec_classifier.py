@@ -1,7 +1,7 @@
 from argparse import Namespace
 from dataclasses import dataclass
 from sklearn.metrics import classification_report, precision_recall_fscore_support
-
+import pandas as pd
 
 import torch
 from tqdm import tqdm
@@ -24,6 +24,7 @@ def add_args(parser):
     group.add_argument(p("start-epoch"), type=int, default=1)
     group.add_argument(p("save-every"), type=int, default=1)
     group.add_argument(p("do-train"), default=False, action="store_true")
+    group.add_argument(p("predict"), default=None, type=str)
     group.add_argument(p("checkpoint-prefix"),
                        type=str, default="word2vec-classifier")
     group.add_argument(p("max-len"), type=int, default=15_000)
@@ -39,6 +40,19 @@ def add_args(parser):
     group.add_argument(p("tokenizer-pkl-path-vocab"), type=str, default=None)
     group.add_argument(p("tokenizer-pkl-path-weights"), type=str, default=None)
 
+def predict(model: Word2VecClassifier, test_loader, out_file):
+    model.eval()
+    predictions = []
+    with torch.no_grad():
+        for input_ids, attentions, text_ids in tqdm(test_loader, desc="Predicting"):
+            out, _ = model(input_ids, attentions)
+            pred = torch.round(out)
+            for i in range(pred.shape[0]):
+                p = int(pred[i].item())
+                predictions.append({"id": text_ids[i], "label": p})
+                
+                
+    pd.DataFrame(predictions).to_json(out_file, orient="records", lines=True)
 
 def evaluate(model: Word2VecClassifier, dev_loader: torch.utils.data.DataLoader, f1_only=True):
     y_pred = []
@@ -201,3 +215,20 @@ def entry(args: Namespace):
             criterion=criterion
         )
         train_classifier(arguments)
+    
+    if arg("predict"):
+        dev_loader = torch.utils.data.DataLoader(
+            TaskA_Dataset(split="dev"),
+            batch_size=args.word2vec_classifier_batch_size,
+            shuffle=True,
+            collate_fn=Word2VecTokenizer.collate_fn(tokenizer)
+        )
+        test_loader = torch.utils.data.DataLoader(
+            TaskA_Dataset(split="test"),
+            batch_size=args.word2vec_classifier_batch_size,
+            shuffle=False,
+            collate_fn=Word2VecTokenizer.collate_fn(tokenizer, is_test=True)
+        )
+        _, report = evaluate(model, dev_loader=dev_loader, f1_only=False)
+        print(report)
+        predict(model, test_loader, arg("predict"))
