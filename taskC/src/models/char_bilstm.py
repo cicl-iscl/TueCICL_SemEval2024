@@ -26,15 +26,20 @@ class ChariBiLSTM(nn.Module):
         )
         self.lstm2out = nn.Linear(hidden_size * 2, 2)
 
+    def to_device(self):
         self.emb.to(get_device())
         self.lstm.to(get_device())
         self.lstm2out.to(get_device())
 
-    def forward(self, input_ids):
+    def forward(self, input_ids, return_hidden = False):
         embedded = self.emb(input_ids)
         lstm_out, _ = self.lstm(embedded)
         out = self.lstm2out(lstm_out)
         out = F.log_softmax(out, dim=-1)
+        
+        if return_hidden:
+            return out, lstm_out
+        
         return out
 
     def predict(self, input_ids):
@@ -56,7 +61,7 @@ class ChariBiLSTM(nn.Module):
 
     @classmethod
     def from_pretrained(cls, path):
-        save_data = torch.load(path)
+        save_data = torch.load(path, map_location=torch.device("cpu"))
         model = cls(
             vocab_size=save_data["vocab_size"],
             emb_size=save_data["emb_size"],
@@ -65,7 +70,7 @@ class ChariBiLSTM(nn.Module):
             dropout=save_data["dropout"],
         )
         model.load_state_dict(save_data["state_dict"])
-        return model
+        return model, save_data
 
     def __str__(self):
         return f"ChariBiLSTM<vocab={self.vocab_size}, emb={self.emb_size}, h={self.hidden_size}, l={self.num_layers}>"
@@ -161,6 +166,9 @@ class CharBiLSTMTokenizer:
             _attentions.append(self._get_attention(_ids[i]))
 
         return torch.tensor(_ids), torch.tensor(_labels), torch.tensor(_words), torch.tensor(_attentions)
+    
+    def decode(self, ids):
+        return [self.idx2word[_id] for _id in ids]
 
     @staticmethod
     def collate_fn(tokenizer):

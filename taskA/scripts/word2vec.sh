@@ -3,8 +3,8 @@ source env/bin/activate
 cd src
 
 python3 script.py train_word2vec_classifier \
-    --word2vec-classifier-checkpoint-prefix word2vec-256-3-newtok \
-    --word2vec-classifier-hidden-size 256 \
+    --word2vec-classifier-checkpoint-prefix word2vec-512-2-newtok-nopad \
+    --word2vec-classifier-hidden-size 512 \
     --word2vec-classifier-num-layers 2 \
     --word2vec-classifier-dropout 0.3 \
     --word2vec-classifier-lr 0.005 \

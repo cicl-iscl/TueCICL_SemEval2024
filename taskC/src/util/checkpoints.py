@@ -9,6 +9,8 @@ class ProgressTracker:
         self.prefix = prefix
         self.evaluate_fn = evaluate_fn
         self.basedir = f"../checkpoints/{prefix}"
+        self.save_latest = save_latest
+        self.last_epoch_only = last_epoch_only
 
         try:
             os.makedirs(self.basedir)

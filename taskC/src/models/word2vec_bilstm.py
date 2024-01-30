@@ -51,12 +51,16 @@ class Word2VecBiLSTM(nn.Module):
     def __str__(self):
         return f"Word2VecBiLSTM(vocab_size={self.vocab_size}, emb_size={self.emb_size}, hidden_size={self.hidden_size}, num_layers={self.num_layers})"
 
-    def forward(self, X):
+    def forward(self, X, return_hidden=False):
         embedded = self.emb(X)
         inputs = embedded.to(get_device())
         lstm_out, _ = self.lstm(inputs)
         out = self.lstm2out(lstm_out)
         out = F.log_softmax(out, dim=-1)
+        
+        if return_hidden:
+            return out, lstm_out
+        
         return out
 
     def save(self, path, extra={}):
@@ -183,6 +187,9 @@ class Word2VecTokenizer:
             torch.tensor(_words),
             torch.tensor(_attentions)
         )
+        
+    def decode(self, ids):
+        return [self.idx2word[x] for x in ids]
 
     def save(self, path):
         with open(path, "wb") as f:

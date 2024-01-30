@@ -167,7 +167,7 @@ def entry(args: Namespace):
     )
 
     if arg("load-model") is not None:
-        model = ChariBiLSTM.from_pretrained(arg("load-model"))
+        model, _ = ChariBiLSTM.from_pretrained(arg("load-model"))
     else:
         model = ChariBiLSTM(
             emb_size=arg("emb-size"),
@@ -177,6 +177,7 @@ def entry(args: Namespace):
             vocab_size=len(tokenizer.idx2word)
         )
     print(model)
+    model.to_device()
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
 
