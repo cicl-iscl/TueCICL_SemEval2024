@@ -7,6 +7,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import tqdm
 from loader.data import TaskA_Dataset
+from loader.spacy import SpacyFeatures
 from loader.uar import UAR
 from models.joint_model import JointModel, JointModelPreprocessor
 from util.checkpoints import ProgressTracker
@@ -27,6 +28,15 @@ def add_args(parser):
         ("w2v-tokenizer-path", str, None),
         ("cc-max-len", int, None),
         ("w2v-max-len", int, None),
+        ("spacy-size", int, 60),
+        ("spacy-hidden-size", int, 256),
+        ("spacy-del-feats", str, None),
+        ("spacy-train-feats", str, None),
+        ("spacy-test-feats", str, None),
+        ("spacy-dev-feats", str, None),
+        ("ppl-train", str, None),
+        ("ppl-dev", str, None),
+        ("ppl-test", str, None),
         ("hidden-size", int, 128),
         ("dropout", float, 0.2),
         ("load-model", str, None),
@@ -59,10 +69,11 @@ def evaluate(model, dev_loader, f1_only=True):
     y_pred = []
     y_gold = []
     with torch.no_grad():
-        for cc, w2v, labels in dev_loader:
+        for cc, w2v, spacy, labels in dev_loader:
             cc = cc.to(get_device())
             w2v = w2v.to(get_device())
-            out = model(cc, w2v)
+            spacy = spacy.to(get_device())
+            out = model(cc, w2v, spacy)
             pred = out.round()
             for i in range(out.shape[0]):
                 y_pred.append(pred[i].item())
@@ -99,12 +110,15 @@ def train(args: TrainingArguments):
         with tqdm.tqdm(total=len(args.train_loader)) as pbar:
             pbar.set_description(f"Epoch {epoch}")
             args.model.train()
-            for cc, w2v, labels in args.train_loader:
+            for cc, w2v, spacy, labels in args.train_loader:
                 args.optimizer.zero_grad()
                 cc = cc.to(get_device())
                 w2v = w2v.to(get_device())
+                spacy = spacy.to(get_device())
                 labels = labels.to(get_device())
-                out = args.model(cc, w2v)
+                out = args.model(cc, w2v, spacy)
+                # print(out)
+                # print(labels)
                 out = out.squeeze()
                 loss = args.criterion(out, labels)
                 loss.backward()
@@ -128,6 +142,15 @@ def train(args: TrainingArguments):
 def entry(args: Namespace):
     def arg(name):
         return getattr(args, "joint_model_" + name.replace("-", "_"))
+    
+    spacy = SpacyFeatures(
+        train_path=arg("spacy-train-feats"),
+        ppl_path_train=arg("ppl-train"),
+        dev_path=arg("spacy-dev-feats"),
+        ppl_path_dev=arg("ppl-dev"),
+        del_feats=arg("spacy-del-feats"),
+    )
+    spacy.scale()
 
     preprocessor = JointModelPreprocessor(
         cc_model_path=arg("cc_model_path"),
@@ -136,6 +159,7 @@ def entry(args: Namespace):
         w2v_model_path=arg("w2v_model_path"),
         w2v_tokenizer_path=arg("w2v_tokenizer_path"),
         w2v_max_len=arg("w2v-max-len"),
+        spacy=spacy
     )
 
     if arg("load-model"):
@@ -146,8 +170,9 @@ def entry(args: Namespace):
     else:
         model = JointModel(
             cc_size=preprocessor.cc_classifier.hidden_size,
-            uar_size=512,
             w2v_size=preprocessor.w2v_classifier.hidden_size,
+            spacy_size=arg("spacy_size"),
+            spacy_hidden_size=arg("spacy_hidden_size"),
             hidden_size=arg("hidden_size"),
             dropout=arg("dropout")
         )
@@ -163,13 +188,13 @@ def entry(args: Namespace):
             ds,
             batch_size=arg("batch_size"),
             shuffle=True,
-            collate_fn=JointModelPreprocessor.collate_fn(preprocessor)
+            collate_fn=JointModelPreprocessor.collate_fn(preprocessor, spacy_split="train")
         )
         dev_loader = DataLoader(
             ds_dev,
             batch_size=arg("batch_size"),
             shuffle=False,
-            collate_fn=JointModelPreprocessor.collate_fn(preprocessor)
+            collate_fn=JointModelPreprocessor.collate_fn(preprocessor, spacy_split="dev")
         )
         training_arguments = TrainingArguments(
             model=model,
@@ -194,7 +219,7 @@ def entry(args: Namespace):
             TaskA_Dataset(split="test"),
             batch_size=arg("batch_size"),
             shuffle=False,
-            collate_fn=JointModelPreprocessor.collate_fn(preprocessor, is_test=True)
+            collate_fn=JointModelPreprocessor.collate_fn(preprocessor, is_test=True, spacy_split="test")
         )
         _, report = evaluate(model, dev_loader, f1_only=False)
         print(report)

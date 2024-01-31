@@ -56,10 +56,12 @@ def collate_fn(tokenizer, max_len=None, device=get_device(), is_test=False):
             return input_ids, attentions, text_ids
         
         texts = [text for text, _, _ in batch]
+        text_ids = [text_id for _, _, text_id in batch]
         labels = [label for _, label, _ in batch]
         input_ids, attentions = tokenizer.tokenize(
             texts, max_len=max_len, device=device)
         labels_tensor = torch.tensor(
             labels, dtype=torch.long, device=device)
+        
         return input_ids, attentions, labels_tensor
     return collate

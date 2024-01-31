@@ -50,8 +50,6 @@ class SpacyFeatures:
         self.train_vectors = (self.train_vectors - mean) / std
         self.dev_vectors = (self.dev_vectors - mean) / std
 
-        print(torch.where(torch.isnan(self.train_vectors)))
-
     def get(self, text_id, split="train"):
         if split == "train":
             try:

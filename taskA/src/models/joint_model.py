@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from loader.spacy import SpacyFeatures
 from loader.uar import UAR
 from models.char_classifier import CharClassifier, CharClassifierTokenizer
 from models.word2vec import Word2VecClassifier, Word2VecTokenizer
@@ -12,13 +13,17 @@ class JointModel(nn.Module):
         self,
         cc_size=None,
         w2v_size=None,
+        spacy_size=None,
+        spacy_hidden_size=32,
         hidden_size=128,
         dropout=None
     ) -> None:
         super().__init__()
         self.cc_size = cc_size
         self.w2v_size = w2v_size
-        self.input_size = cc_size + w2v_size
+        self.spacy_size = spacy_size
+        self.spacy_hidden_size = spacy_hidden_size
+        self.input_size = cc_size + w2v_size + spacy_hidden_size
         self.hidden_size = hidden_size
         self.dropout = dropout
 
@@ -26,6 +31,20 @@ class JointModel(nn.Module):
             1.0, requires_grad=True, dtype=torch.float32))
         self.w2v_weight = nn.Parameter(torch.tensor(
             1.0, requires_grad=True, dtype=torch.float32))
+        self.spacy_weight = nn.Parameter(torch.tensor(
+            1.0, requires_grad=True, dtype=torch.float32))
+        
+        self.spacy_mlp = nn.Sequential(
+            nn.Linear(self.spacy_size, self.spacy_hidden_size),
+            nn.Sigmoid(),
+            nn.Dropout(dropout),
+            nn.Linear(self.spacy_hidden_size, self.spacy_hidden_size),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(self.spacy_hidden_size, self.spacy_hidden_size),
+            nn.Sigmoid()
+        )
+
 
         self.mlp = nn.Sequential(
             nn.Linear(self.input_size, self.hidden_size),
@@ -40,11 +59,13 @@ class JointModel(nn.Module):
 
     def to_device(self):
         self.mlp.to(get_device())
+        self.spacy_mlp.to(get_device())
 
-    def forward(self, X_cc, X_w2v):
+    def forward(self, X_cc, X_w2v, X_spacy):
         cc_out = X_cc * self.cc_weight
         w2v_out = X_w2v * self.w2v_weight
-        X = torch.cat([cc_out, w2v_out], dim=1)
+        spacy_out = self.spacy_mlp(X_spacy) * self.spacy_weight
+        X = torch.cat([cc_out, w2v_out, spacy_out], dim=1)
         return self.mlp(X)
 
     def save(self, path, extra={}):
@@ -55,6 +76,8 @@ class JointModel(nn.Module):
             "dropout": self.dropout,
             "cc_size": self.cc_size,
             "w2v_size": self.w2v_size,
+            "spacy_size": self.spacy_size,
+            "spacy_hidden_size": self.spacy_hidden_size,
             **extra
         }, path)
 
@@ -68,7 +91,9 @@ class JointModel(nn.Module):
             cc_size=checkpoint["cc_size"],
             w2v_size=checkpoint["w2v_size"],
             hidden_size=checkpoint["hidden_size"],
-            dropout=checkpoint["dropout"]
+            dropout=checkpoint["dropout"],
+            spacy_size=checkpoint["spacy_size"],
+            spacy_hidden_size=checkpoint["spacy_hidden_size"]
         )
         model.load_state_dict(checkpoint["state_dict"])
         model.to_device()
@@ -84,7 +109,10 @@ class JointModelPreprocessor:
         w2v_tokenizer_path=None,
         cc_max_len=5000,
         w2v_max_len=1000,
+        spacy: SpacyFeatures = None,
     ):
+        
+        self.spacy = spacy
 
         self.cc_max_len = cc_max_len
         self.w2v_max_len = w2v_max_len
@@ -110,7 +138,7 @@ class JointModelPreprocessor:
         print(self.w2v_classifier)
         print("------------------\n")
 
-    def prepare(self, texts):
+    def prepare(self, texts, text_ids, spacy_split="train"):
         with torch.no_grad():
             cc_X, _ = self.cc_tokenizer.tokenize(
                 texts, max_len=self.cc_max_len)
@@ -119,21 +147,28 @@ class JointModelPreprocessor:
             cc_out = cc_out[:, -1, :]
             _, _, w2v_out = self.w2v_classifier(
                 w2v_X, w2v_attention, return_last_hidden=True)
-            return cc_out, w2v_out
+            
+            spacy_feats = []
+            for text_id in text_ids:
+                spacy_feats.append(self.spacy.get(text_id, split=spacy_split))
+            spacy_feats = torch.stack(spacy_feats)
+            
+            return cc_out, w2v_out, spacy_feats
 
     @staticmethod
-    def collate_fn(tokenizer, is_test=False):
+    def collate_fn(tokenizer, is_test=False, spacy_split="train"):
         def collate(batch):
             if is_test:
                 text = [i[0] for i in batch]
                 text_id = [i[1] for i in batch]
-                cc_out, w2v_out = tokenizer.prepare(text)
-                return cc_out, w2v_out, text_id
+                cc_out, w2v_out, spacy = tokenizer.prepare(text, text_ids=text_id, spacy_split=spacy_split)
+                return cc_out, w2v_out, spacy, text_id
             else:
                 text = [i[0] for i in batch]
                 label = [i[1] for i in batch]
-                cc_out, w2v_out = tokenizer.prepare(text)
+                text_id = [i[2] for i in batch]
+                cc_out, w2v_out, spacy = tokenizer.prepare(text, text_ids=text_id, spacy_split=spacy_split)
                 labels_tensor = torch.tensor(
                     label, dtype=torch.float32)
-                return cc_out, w2v_out, labels_tensor
+                return cc_out, w2v_out, spacy, labels_tensor
         return collate
