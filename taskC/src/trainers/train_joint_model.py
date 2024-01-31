@@ -61,7 +61,7 @@ def predict(model, test_loader, out_file):
             preds = torch.argmax(out, dim=-1)
             for i in range(len(preds)):
                 p = _true_label(preds[i])
-                predictions.append({"id": ids[i], "pred": p})
+                predictions.append({"id": ids[i], "label": p})
     
     pd.DataFrame(predictions).to_json(out_file, orient="records", lines=True)
 

@@ -32,7 +32,8 @@ class SpacyFeatures:
                     _id = content["id"]
                     _ids[_id] = i
                     vectors.append(
-                        torch.tensor(vec, dtype=torch.float32)
+                        torch.tensor(vec, dtype=torch.float32,
+                                     requires_grad=False)
                     )
                     i += 1
                 except Exception as e:
