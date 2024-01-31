@@ -54,10 +54,11 @@ def predict(model: JointModel, test_loader, out_file):
     model.eval()
     predictions = []
     with torch.no_grad():
-        for cc, w2v, text_ids in tqdm.tqdm(test_loader, desc="Predicting"):
+        for cc, w2v, spacy, text_ids in tqdm.tqdm(test_loader, desc="Predicting"):
             cc = cc.to(get_device())
             w2v = w2v.to(get_device())
-            out = model(cc, w2v)
+            spacy = spacy.to(get_device())
+            out = model(cc, w2v, spacy)
             pred = torch.round(out)
             for i in range(pred.shape[0]):
                 p = int(pred[i].item())
@@ -148,6 +149,8 @@ def entry(args: Namespace):
         ppl_path_train=arg("ppl-train"),
         dev_path=arg("spacy-dev-feats"),
         ppl_path_dev=arg("ppl-dev"),
+        test_path=arg("spacy-test-feats"),
+        ppl_path_test=arg("ppl-test"),
         del_feats=arg("spacy-del-feats"),
     )
     spacy.scale()
