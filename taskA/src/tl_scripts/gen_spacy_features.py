@@ -6,13 +6,16 @@ from tqdm import tqdm
 
 
 class DS(torch.utils.data.Dataset):
-    def __init__(self, dev=False):
-        if dev:
+    def __init__(self, mode="train"):
+        if mode == "train":
             self.data = pd.read_json(
                 '~/cicl/taskA/data/task_files/subtaskA_dev_monolingual.jsonl', lines=True)
-        else:
+        elif mode == "dev":
             self.data = pd.read_json(
                 '~/cicl/taskA/data/task_files/subtaskA_train_monolingual.jsonl', lines=True)
+        elif mode == "test":
+            self.data = pd.read_json(
+                '~/cicl/taskA/data/task_files/subtaskA_test_monolingual.jsonl', lines=True)
 
     def __len__(self):
         return len(self.data)
@@ -24,8 +27,8 @@ class DS(torch.utils.data.Dataset):
 
 
 def entry(args):
-    dev = True
-    ds = DS(dev=dev)
+    mode = "test"
+    ds = DS(mode=mode)
     dl = torch.utils.data.DataLoader(ds, batch_size=32, shuffle=False)
     nlp = spacy.load('en_core_web_sm')
     nlp.add_pipe('textdescriptives/all')
@@ -51,7 +54,12 @@ def entry(args):
                 "id": _id
             }
             result.append(r)
-    out_path = '~/cicl/taskA/data/spacy/spacy_feats_sm_train.jsonl' if not dev else '~/cicl/taskA/data/spacy/spacy_feats_sm_dev.jsonl'
+    if mode == "train":
+        out_path = '~/cicl/taskA/data/spacy/spacy_feats_sm_train.jsonl'
+    elif mode == "dev":
+        out_path = '~/cicl/taskA/data/spacy/spacy_feats_sm_dev.jsonl'
+    elif mode == "test":
+        out_path = '~/cicl/taskA/data/spacy/spacy_feats_sm_test.jsonl'
     pd.DataFrame(result).to_json(out_path, lines=True, orient='records')
 
 # docs = nlp.pipe(train_df.text)
