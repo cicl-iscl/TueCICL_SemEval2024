@@ -29,7 +29,7 @@ def add_args(parser):
     group.add_argument(p("num-layers"), type=int, default=2)
     group.add_argument(p("dropout"), type=float, default=0.2)
     group.add_argument(p("checkpoint-prefix"), type=str, default="char_bilstm")
-    group.add_argument(p("load-model"), type=str, default="char_bilstm")
+    group.add_argument(p("load-model"), type=str, default=None)
 
 
 def predict(model, test_loader, out_file):
