@@ -8,7 +8,7 @@ from loader.data import TaskC_Data
 
 from models.char_bilstm import CharBiLSTMTokenizer, ChariBiLSTM
 from util.checkpoints import ProgressTracker
-from util.device import get_device
+from util.device import get_device, set_preferred_device
 
 
 def add_args(parser):
@@ -30,6 +30,7 @@ def add_args(parser):
     group.add_argument(p("dropout"), type=float, default=0.2)
     group.add_argument(p("checkpoint-prefix"), type=str, default="char_bilstm")
     group.add_argument(p("load-model"), type=str, default=None)
+    group.add_argument(p("prefer-cuda-device"), type=int, default=0)
 
 
 def predict(model, test_loader, out_file):
@@ -169,6 +170,9 @@ def entry(args: Namespace):
     def arg(cmd):
         p = f"char_bilstm_{cmd.replace('-', '_')}"
         return args.__getattribute__(p)
+    
+    if arg("prefer_cuda_device") is not None:
+        set_preferred_device(f"cuda:{arg('prefer_cuda_device')}")
 
     tokenizer = CharBiLSTMTokenizer.from_pretrained(
         arg("tokenizer-path"), max_len=arg("tokenizer-max-len"))
