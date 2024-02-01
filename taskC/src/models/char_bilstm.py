@@ -70,6 +70,7 @@ class ChariBiLSTM(nn.Module):
             dropout=save_data["dropout"],
         )
         model.load_state_dict(save_data["state_dict"])
+        model.to_device()
         return model, save_data
 
     def __str__(self):
