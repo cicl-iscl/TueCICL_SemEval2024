@@ -3,7 +3,16 @@ import torch
 
 
 class SpacyFeatures:
-    def __init__(self, train_path, dev_path, ppl_path_train, ppl_path_dev, del_feats=None) -> None:
+    def __init__(
+        self, 
+        train_path, 
+        dev_path, 
+        test_path,
+        ppl_path_train, 
+        ppl_path_dev, 
+        ppl_path_test,
+        del_feats=None
+    ) -> None:
         if del_feats is not None:
             self.del_feats = [int(i) for i in del_feats.split(",")]
         else:
@@ -13,6 +22,10 @@ class SpacyFeatures:
             train_path, ppl_path_train)
         self.dev_ids, self.dev_vectors = self.__load_data(
             dev_path, ppl_path_dev)
+        self.test_ids, self.test_vectors = self.__load_data(
+            test_path, ppl_path_test)
+        
+        
         self.dim = self.train_vectors.shape[1]
 
     def __load_data(self, path, ppl_path):
@@ -50,6 +63,7 @@ class SpacyFeatures:
 
         self.train_vectors = (self.train_vectors - mean) / std
         self.dev_vectors = (self.dev_vectors - mean) / std
+        self.test_vectors = (self.test_vectors - mean) / std
 
     def get(self, text_id, split="train"):
         if split == "train":
@@ -58,9 +72,16 @@ class SpacyFeatures:
             except:
                 print("[Warining] falling back to zero vector, key = ", text_id)
                 return torch.zeros(self.dim, dtype=torch.float32)
-        else:
+        elif split == "dev":
             try:
                 return self.dev_vectors[self.dev_ids[text_id]]
             except:
                 print("[Warining] falling back to zero vector, key = ", text_id)
                 return torch.zeros(self.dim, dtype=torch.float32)
+        elif split == "test":
+            try:
+                return self.test_vectors[self.test_ids[text_id]]
+            except:
+                print("[Warining] falling back to zero vector, key = ", text_id)
+                return torch.zeros(self.dim, dtype=torch.float32)
+        raise ValueError("split must be one of 'train', 'dev', 'test'")
