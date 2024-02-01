@@ -232,6 +232,9 @@ def entry(args: Namespace):
     )
 
     if arg("train"):
+        print("--- Training started with arguments ---")
+        print(training_arguments)
+        print("---------------------------------------")
         train(training_arguments)
     
     if arg("predict"):
