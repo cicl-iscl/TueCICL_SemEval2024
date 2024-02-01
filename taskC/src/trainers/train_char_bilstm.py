@@ -103,7 +103,7 @@ class TrainingArguments:
     criterion: torch.nn.Module = None
 
 
-def perform_training_step(args, batch):
+def perform_training_step(args: TrainingArguments, batch):
     ids, labels, _, attentions = batch
     ids = ids.to(get_device())
     labels = labels.to(get_device())

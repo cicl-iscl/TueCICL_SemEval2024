@@ -185,7 +185,7 @@ class CharBiLSTMTokenizer:
                 input_ids, labels, words, attentions = tokenizer.tokenize(
                     texts, _labels)
 
-            return input_ids, labels, words, attentions
+                return input_ids, labels, words, attentions
 
         return collate_batch
 
