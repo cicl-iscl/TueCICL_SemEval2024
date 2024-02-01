@@ -202,7 +202,10 @@ def entry(args: Namespace):
     )
 
     if arg("load-model") is not None:
-        model, _ = ChariBiLSTM.from_pretrained(arg("load-model"))
+        model, cp = ChariBiLSTM.from_pretrained(arg("load-model"))
+        optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
+        if "optimizer" in cp:
+            optimizer.load_state_dict(cp["optimizer"])
     else:
         model = ChariBiLSTM(
             emb_size=arg("emb-size"),
@@ -211,10 +214,11 @@ def entry(args: Namespace):
             dropout=arg("dropout"),
             vocab_size=len(tokenizer.idx2word)
         )
+        optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
     print(model)
     model.to_device()
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
+    
 
     training_arguments = TrainingArguments(
         model=model,
