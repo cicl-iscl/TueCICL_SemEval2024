@@ -135,10 +135,9 @@ class CharBiLSTMTokenizer:
             _word = []
             boundary = labels[text_idx]
             spl = text.lower().split(" ")
+            spl = [f"{s} " for s in spl]
             for idx, word in enumerate(spl):
                 chars = [c for c in word]
-                if len(chars) == 0:
-                    chars = [" "]
                 for char in chars:
                     _id.append(self.word2idx.get(
                         self.map_char(char), self.word2idx[self.UNK]))
