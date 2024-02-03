@@ -119,7 +119,7 @@ def perform_training_step(args: TrainingArguments, batch):
         local_out = out[j][:attention_bound]
         local_labels = labels[j][:attention_bound]
         loss += args.criterion(local_out, local_labels)
-
+    torch.nn.utils.clip_grad.clip_grad_norm_(args.model.parameters(), 1.0)
     loss.backward()
     args.optimizer.step()
     return loss.item()
