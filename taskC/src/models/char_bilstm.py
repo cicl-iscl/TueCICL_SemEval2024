@@ -70,6 +70,7 @@ class ChariBiLSTM(nn.Module):
             dropout=save_data["dropout"],
         )
         model.load_state_dict(save_data["state_dict"])
+        model.to_device()
         return model, save_data
 
     def __str__(self):
@@ -185,7 +186,7 @@ class CharBiLSTMTokenizer:
                 input_ids, labels, words, attentions = tokenizer.tokenize(
                     texts, _labels)
 
-            return input_ids, labels, words, attentions
+                return input_ids, labels, words, attentions
 
         return collate_batch
 

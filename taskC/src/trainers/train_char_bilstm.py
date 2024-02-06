@@ -8,7 +8,7 @@ from loader.data import TaskC_Data
 
 from models.char_bilstm import CharBiLSTMTokenizer, ChariBiLSTM
 from util.checkpoints import ProgressTracker
-from util.device import get_device
+from util.device import get_device, set_preferred_device
 
 
 def add_args(parser):
@@ -29,7 +29,8 @@ def add_args(parser):
     group.add_argument(p("num-layers"), type=int, default=2)
     group.add_argument(p("dropout"), type=float, default=0.2)
     group.add_argument(p("checkpoint-prefix"), type=str, default="char_bilstm")
-    group.add_argument(p("load-model"), type=str, default="char_bilstm")
+    group.add_argument(p("load-model"), type=str, default=None)
+    group.add_argument(p("prefer-cuda-device"), type=int, default=0)
 
 
 def predict(model, test_loader, out_file):
@@ -103,7 +104,7 @@ class TrainingArguments:
     criterion: torch.nn.Module = None
 
 
-def perform_training_step(args, batch):
+def perform_training_step(args: TrainingArguments, batch):
     ids, labels, _, attentions = batch
     ids = ids.to(get_device())
     labels = labels.to(get_device())
@@ -118,7 +119,7 @@ def perform_training_step(args, batch):
         local_out = out[j][:attention_bound]
         local_labels = labels[j][:attention_bound]
         loss += args.criterion(local_out, local_labels)
-
+    torch.nn.utils.clip_grad.clip_grad_norm_(args.model.parameters(), 1.0)
     loss.backward()
     args.optimizer.step()
     return loss.item()
@@ -169,6 +170,9 @@ def entry(args: Namespace):
     def arg(cmd):
         p = f"char_bilstm_{cmd.replace('-', '_')}"
         return args.__getattribute__(p)
+    
+    if arg("prefer_cuda_device") is not None:
+        set_preferred_device(f"cuda:{arg('prefer_cuda_device')}")
 
     tokenizer = CharBiLSTMTokenizer.from_pretrained(
         arg("tokenizer-path"), max_len=arg("tokenizer-max-len"))
@@ -198,7 +202,10 @@ def entry(args: Namespace):
     )
 
     if arg("load-model") is not None:
-        model, _ = ChariBiLSTM.from_pretrained(arg("load-model"))
+        model, cp = ChariBiLSTM.from_pretrained(arg("load-model"))
+        optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
+        if "optimizer" in cp:
+            optimizer.load_state_dict(cp["optimizer"])
     else:
         model = ChariBiLSTM(
             emb_size=arg("emb-size"),
@@ -207,10 +214,11 @@ def entry(args: Namespace):
             dropout=arg("dropout"),
             vocab_size=len(tokenizer.idx2word)
         )
+        optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
     print(model)
     model.to_device()
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=arg("lr"))
+    
 
     training_arguments = TrainingArguments(
         model=model,
@@ -228,6 +236,9 @@ def entry(args: Namespace):
     )
 
     if arg("train"):
+        print("--- Training started with arguments ---")
+        print(training_arguments)
+        print("---------------------------------------")
         train(training_arguments)
     
     if arg("predict"):
